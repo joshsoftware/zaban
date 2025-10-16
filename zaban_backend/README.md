@@ -1,88 +1,92 @@
-Zabaan Backend (Rails 8)
+Zabaan Backend (FastAPI)
 
-This is the Rails 8 API backend for Zabaan. It provides authentication, API key management, and AI feature endpoints (TTS, STT, Translation, Transliteration).
+This repository now uses Python FastAPI for the backend and for wrapping AI4Bharat services (TTS, STT, Translation, Transliteration).
 
 Prerequisites
 
-- Ruby (3.3+) and Bundler
-- PostgreSQL (14+)
-- Node.js (for asset tooling if needed) and Yarn/npm
-- Redis (if you plan to run background jobs or Action Cable in dev)
+- Python 3.11
+- uv (Python package manager)
 
 Setup
 
-1) Install Ruby gems
+1) Create a virtual environment and install dependencies
 
 ```
-bundle install
+cd fastapi_app
+uv venv
+. .venv/bin/activate
+uv pip install fastapi uvicorn[standard] httpx python-multipart pydantic pydantic-settings
 ```
 
 2) Configure environment
 
-Create `.env` or use your shell export mechanism. At minimum, you will need:
+Set the AI4Bharat service endpoints (public endpoints typically do not need keys):
 
 ```
-RAILS_ENV=development
-DATABASE_URL=postgres://<user>:<password>@localhost:5432/zabaan_dev
-RAILS_MASTER_KEY=<your-master-key-if-using-credentials>
-JWT_SECRET=<a-long-random-secret>
-```
-
-Alternatively, configure `config/database.yml` with local credentials. Ensure PostgreSQL is running and accessible.
-
-3) Prepare database
-
-```
-bin/rails db:create db:migrate
-```
-
-4) Seed data (optional)
-
-```
-bin/rails db:seed
+export AI4B_TRANSLATE_URL="https://<your-indictrans2-endpoint>"
+export AI4B_TTS_URL="https://<your-indicparler-tts-endpoint>"
+export AI4B_STT_URL="https://<your-stt-endpoint>"            # or set AI4B_OPEN_SPEECH_URL
+export AI4B_TRANSLITERATE_URL="https://<your-indic-xlit-endpoint>"
+# Optional keys (leave unset if not required)
+export AI4B_API_KEY=""
+export AI4B_OPEN_SPEECH_API_KEY=""
 ```
 
 Run the Server
 
 ```
-bin/rails server
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-By default it will serve on `http://localhost:3000`.
+Endpoints
 
-Environment & Credentials
+- POST `/api/v1/tts`
+- POST `/api/v1/stt` (multipart file upload or JSON with `audio_url`)
+- POST `/api/v1/translate`
+- POST `/api/v1/transliterate`
 
-- Credentials are managed via Rails encrypted credentials. To edit:
+Example Requests
 
-```
-bin/rails credentials:edit
-```
-
-- Ensure `config/credentials.yml.enc` and the master key are properly set for your environment.
-
-Common Commands
-
-- Run console: `bin/rails console`
-- Run migrations: `bin/rails db:migrate`
-- Rollback last migration: `bin/rails db:rollback`
-- Lint (if configured): `bin/rubocop`
-- Security scan (if configured): `bin/brakeman`
-
-Testing
-
-- If you use RSpec or Minitest, run the suite with:
+TTS
 
 ```
-bin/rake test
+curl -X POST http://localhost:8000/api/v1/tts \
+  -H "Content-Type: application/json" \
+  -d '{"text":"नमस्ते दुनिया","lang":"hi","speaker":"female","sample_rate":22050,"format":"wav"}'
 ```
 
-API Keys and Authentication
+STT (multipart)
 
-- Users authenticate via email/password to obtain tokens (JWT/Devise).
-- API requests require an `Authorization: Bearer <API_KEY>` header.
-- Keys can be issued, rotated, and revoked from the dashboard (or Admin panel).
+```
+curl -X POST http://localhost:8000/api/v1/stt \
+  -F "audio=@/path/to/sample.wav" -F "lang=hi" -F "format=wav"
+```
 
-Deployment Notes
+STT (audio_url JSON)
 
-- See `Dockerfile` and `bin/kamal` (if using Kamal) for containerized deploys.
-- Ensure environment variables and credentials are configured in the target environment.
+```
+curl -X POST http://localhost:8000/api/v1/stt \
+  -H "Content-Type: application/json" \
+  -d '{"audio_url":"https://example.com/sample.wav","lang":"hi","format":"wav"}'
+```
+
+Translate
+
+```
+curl -X POST http://localhost:8000/api/v1/translate \
+  -H "Content-Type: application/json" \
+  -d '{"text":"How are you?","source_lang":"en","target_lang":"hi"}'
+```
+
+Transliterate
+
+```
+curl -X POST http://localhost:8000/api/v1/transliterate \
+  -H "Content-Type: application/json" \
+  -d '{"text":"namaste","source_script":"latn","target_script":"deva","lang":"hi","topk":3}'
+```
+
+Notes
+
+- AI4Bharat repos and model documentation: `https://github.com/AI4Bharat/IndicTrans2` and `https://ai4bharat.iitm.ac.in/`.
+- If endpoints are public, you can omit API keys. Restart the server after changing env vars.
