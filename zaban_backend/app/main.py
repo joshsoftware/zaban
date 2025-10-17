@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 load_dotenv(override=True)
-from .routes.v1 import router as v1_router
+from .api.v1 import router as v1_router
 from .routes import auth as auth_routes
 
 

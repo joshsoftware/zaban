@@ -34,7 +34,13 @@ GOOGLE_CLIENT_SECRET=your-client-secret
 JWT_SECRET=your-long-random-secret-string
 ALLOWED_SSO_DOMAINS=joshsoftware.com
 
-# AI4Bharat endpoints (optional, configure when ready)
+# IndicTrans2 Translation (uses local model by default)
+USE_LOCAL_INDICTRANS2=true
+INDICTRANS2_AUTO_LOAD=false  # Set to true to load models at startup (faster first request but slower startup)
+INDICTRANS2_EN_INDIC_MODEL=ai4bharat/indictrans2-en-indic-dist-200M  # 200M distilled model
+INDICTRANS2_INDIC_EN_MODEL=ai4bharat/indictrans2-indic-en-dist-200M
+
+# AI4Bharat endpoints (optional, for TTS/STT/Transliteration or external translation API)
 AI4B_TRANSLATE_URL=
 AI4B_TTS_URL=
 AI4B_STT_URL=
@@ -130,6 +136,66 @@ curl -X POST http://localhost:8000/api/v1/auth/logout \
 ```
 
 Example AI4Bharat Requests
+
+Translation (IndicTrans2)
+
+The translation endpoint uses the local IndicTrans2 model by default. It supports 22 Indian languages.
+
+**Language Codes (BCP-47 format with script):**
+- English: `eng_Latn`
+- Hindi: `hin_Deva`
+- Bengali: `ben_Beng`
+- Telugu: `tel_Telu`
+- Tamil: `tam_Taml`
+- Gujarati: `guj_Gujr`
+- Kannada: `kan_Knda`
+- Malayalam: `mal_Mlym`
+- Marathi: `mar_Deva`
+- Punjabi: `pan_Guru`
+- Oriya: `ory_Orya`
+- Assamese: `asm_Beng`
+- Urdu: `urd_Arab`
+- Kashmiri (Arabic): `kas_Arab`
+- Kashmiri (Devanagari): `kas_Deva`
+- Konkani: `gom_Deva`
+- Manipuri (Bengali): `mni_Beng`
+- Manipuri (Meitei): `mni_Mtei`
+- Nepali: `npi_Deva`
+- Sanskrit: `san_Deva`
+- Santali: `sat_Olck`
+- Sindhi (Arabic): `snd_Arab`
+- Sindhi (Devanagari): `snd_Deva`
+
+**English to Hindi:**
+```bash
+curl -X POST http://localhost:8000/api/v1/translate \
+  -H "Content-Type: application/json" \
+  -d '{"text":"How are you?","source_lang":"eng_Latn","target_lang":"hin_Deva"}'
+
+# Response:
+# {
+#   "translated_text": "आप कैसे हैं?",
+#   "source_lang": "eng_Latn",
+#   "target_lang": "hin_Deva",
+#   "model": "indictrans2-local"
+# }
+```
+
+**Hindi to English:**
+```bash
+curl -X POST http://localhost:8000/api/v1/translate \
+  -H "Content-Type: application/json" \
+  -d '{"text":"आप कैसे हैं?","source_lang":"hin_Deva","target_lang":"eng_Latn"}'
+```
+
+**English to Tamil:**
+```bash
+curl -X POST http://localhost:8000/api/v1/translate \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Good morning","source_lang":"eng_Latn","target_lang":"tam_Taml"}'
+```
+
+**Note:** On the first translation request, the models will be downloaded (~ 800MB total). This may take a few minutes. Subsequent requests will be fast.
 
 TTS
 
