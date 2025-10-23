@@ -3,11 +3,13 @@
 import { motion } from 'framer-motion';
 import { withAuth, useAuth } from '../lib/withAuth';
 import { useState } from 'react';
-import { LayoutDashboard, KeyRound, LogOut } from 'lucide-react';
+import { LayoutDashboard, KeyRound, LogOut, Mic } from 'lucide-react';
 import GenerateKeyModal from '../componenets/GenerateKeyModal';
 import APIKeysTable, { APIKey } from '../componenets/APIKeysTable';
+import SpeechToText from '../componenets/SpeechToText';
 
-type TabType = 'overview' | 'api-keys';
+
+type TabType = 'overview' | 'api-keys' | 'speech-to-text';
 
 function DashboardPage() {
   const { user, logout } = useAuth();
@@ -25,6 +27,11 @@ function DashboardPage() {
       createdAt: new Date(),
     };
     setApiKeys((prev) => [...prev, newApiKey]);
+  };
+
+  const handleTranscriptionComplete = (text: string) => {
+    console.log('Transcription:', text);
+    // Handle transcription result (e.g., save to database, display notification)
   };
 
   return (
@@ -49,6 +56,16 @@ function DashboardPage() {
             >
               <LayoutDashboard className="h-5 w-5 text-orange-500" />
               Overview
+            </button>
+
+            <button
+              onClick={() => setActiveTab('speech-to-text')}
+              className={`flex items-center w-full gap-3 px-4 py-2 text-gray-700 rounded-md hover:bg-orange-100 transition ${
+                activeTab === 'speech-to-text' ? 'bg-orange-100 text-orange-600' : ''
+              }`}
+            >
+              <Mic className="h-5 w-5 text-orange-500" />
+              Speech to Text
             </button>
 
             <button
@@ -85,11 +102,11 @@ function DashboardPage() {
       {/* Main Content */}
       <div className="flex-1">
         <main className="px-6 py-8">
-          {activeTab === 'overview' ? (
-            <OverviewTab user={user} />
-          ) : (
-            <APIKeysTab apiKeys={apiKeys} />
+          {activeTab === 'overview' && <OverviewTab user={user} />}
+          {activeTab === 'speech-to-text' && (
+            <SpeechToTextTab onTranscriptionComplete={handleTranscriptionComplete} />
           )}
+          {activeTab === 'api-keys' && <APIKeysTab apiKeys={apiKeys} />}
         </main>
       </div>
 
@@ -143,6 +160,22 @@ function OverviewTab({ user }: { user: any }) {
           </div>
         </motion.div>
       )}
+    </motion.div>
+  );
+}
+
+function SpeechToTextTab({ 
+  onTranscriptionComplete 
+}: { 
+  onTranscriptionComplete: (text: string) => void 
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <SpeechToText onTranscriptionComplete={onTranscriptionComplete} />
     </motion.div>
   );
 }
