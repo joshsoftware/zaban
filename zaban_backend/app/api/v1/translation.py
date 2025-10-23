@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 import os
 
 from ...services.ai4bharat import Ai4BharatClient
 from ...services.indictrans2 import get_indictrans2_service
+from ...core.api_key_auth import require_api_key
 
 
 router = APIRouter(prefix="")
@@ -21,7 +22,7 @@ client = Ai4BharatClient()
 
 
 @router.post("/translate")
-async def translate(req: TranslateRequest):
+async def translate(req: TranslateRequest, _api_key=Depends(require_api_key)):
     """
     Translate text using IndicTrans2 model (local) or external API.
     """
