@@ -8,7 +8,9 @@ JWT_SECRET = os.getenv("JWT_SECRET", "change_me")
 JWT_ALG = "HS256"
 ACCESS_TOKEN_EXPIRES_MIN = int(os.getenv("ACCESS_TOKEN_EXPIRES_MIN", "30"))
 
-# Simple in-memory denylist for logout; replace with Redis or DB in production
+# ⚠️  WARNING: In-memory token denylist - NOT SUITABLE FOR PRODUCTION! ⚠️
+# TODO: Replace with Redis or database storage before production deployment
+# This implementation will not persist across server restarts and won't work in multi-instance deployments
 _denylist: set[str] = set()
 
 
@@ -21,6 +23,7 @@ def create_access_token(subject: str, expires_minutes: Optional[int] = None) -> 
 
 
 def verify_token(token: str) -> Optional[str]:
+    # ⚠️  WARNING: Using in-memory denylist - replace with Redis/DB for production
     if token in _denylist:
         return None
     try:
@@ -31,6 +34,7 @@ def verify_token(token: str) -> Optional[str]:
 
 
 def logout_token(token: str) -> None:
+    # ⚠️  WARNING: Using in-memory denylist - replace with Redis/DB for production
     _denylist.add(token)
 
 

@@ -203,13 +203,19 @@ Google OAuth invalid_grant error
 - Verify GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are loaded in the server process
 - Ensure OAuth client type is "Web application" (not "Desktop" or "Mobile")
 - Add your Google account as a test user if consent screen is in "Testing" mode
-- Do not include PKCE parameters (code_challenge) in the authorization URL
+- Do not include PKCE parameters (code_challenge) in the authorization URL - PKCE is not needed for server-side web applications with client secrets (confidential clients)
 
 Database connection errors
 
 - Ensure PostgreSQL is running: `pg_isready`
 - Create database if missing: `createdb zaban_backend_development`
 - Verify DATABASE_URL format: `postgresql+psycopg://user:password@host:port/dbname`
+
+OAuth Security Notes
+
+- **PKCE (Proof Key for Code Exchange)**: This application uses a server-side OAuth flow with client secrets (confidential client), so PKCE is not required. PKCE is primarily for public clients (mobile apps, SPAs) that cannot securely store client secrets.
+- **Client Type**: Configure as "Web application" in Google Cloud Console (not "Desktop" or "Mobile")
+- **Security**: The application uses client secrets for authentication, which is appropriate for server-side applications
 
 Notes
 

@@ -1,11 +1,16 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
-load_dotenv(override=True)
 from .routes.v1 import router as v1_router
 from .routes import auth as auth_routes
 
 
 app = FastAPI(title="AI4Bharat FastAPI Backend", version="0.1.0")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Load environment variables from .env file on application startup."""
+    load_dotenv(override=True)
 
 
 @app.get("/up")
