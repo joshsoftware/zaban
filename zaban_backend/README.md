@@ -141,6 +141,30 @@ curl http://localhost:8000/api/v1/auth/me \
 curl -X POST http://localhost:8000/api/v1/auth/logout \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
+https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:8000/auth/callback&response_type=code&scope=openid%20email%20profile&prompt=consent&login_hint=your.email@joshsoftware.com
+```
+
+2. Exchange code for token (copy the decoded code from redirect, NOT the URL-encoded version):
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/google/login \
+  -H "Content-Type: application/json" \
+  -d '{"code":"PASTE_DECODED_CODE_HERE","redirect_uri":"http://localhost:8000/auth/callback"}'
+```
+
+3. Use the returned token:
+
+```bash
+curl http://localhost:8000/api/v1/auth/me \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+4. Logout:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/logout \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
 
 ## API Key Management Flow
 
@@ -350,25 +374,6 @@ curl -X POST http://localhost:8000/api/v1/tts \
   -d '{"text":"नमस्ते दुनिया","lang":"hi","speaker":"female","sample_rate":22050,"format":"wav"}'
 ```
 
-STT (multipart)
-
-```bash
-curl -X POST http://localhost:8000/api/v1/stt \
-  -H "X-API-Key: sk-your-secret-key-here" \
-  -F "audio=@/path/to/sample.wav" -F "lang=hi" -F "format=wav"
-```
-
-STT (audio_url JSON)
-
-```bash
-curl -X POST http://localhost:8000/api/v1/stt \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: sk-your-secret-key-here" \
-  -d '{"audio_url":"https://example.com/sample.wav","lang":"hi","format":"wav"}'
-```
-
-Transliterate
-
 ```bash
 curl -X POST http://localhost:8000/api/v1/transliterate \
   -H "Content-Type: application/json" \
@@ -409,7 +414,7 @@ Google OAuth invalid_grant error
 - Verify GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are loaded in the server process
 - Ensure OAuth client type is "Web application" (not "Desktop" or "Mobile")
 - Add your Google account as a test user if consent screen is in "Testing" mode
-- Do not include PKCE parameters (code_challenge) in the authorization URL
+- Do not include PKCE parameters (code_challenge) in the authorization URL - PKCE is not needed for server-side web applications with client secrets (confidential clients)
 
 Database connection errors
 
@@ -428,6 +433,11 @@ Common API Key Issues:
 - Check that the API key hasn't been deleted/deactivated
 - Verify the X-API-Key header is included in all AI4Bharat service requests
 - API keys are user-specific - you can only use keys you created
+OAuth Security Notes
+
+- **PKCE (Proof Key for Code Exchange)**: This application uses a server-side OAuth flow with client secrets (confidential client), so PKCE is not required. PKCE is primarily for public clients (mobile apps, SPAs) that cannot securely store client secrets.
+- **Client Type**: Configure as "Web application" in Google Cloud Console (not "Desktop" or "Mobile")
+- **Security**: The application uses client secrets for authentication, which is appropriate for server-side applications
 
 Notes
 
