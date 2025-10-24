@@ -4,9 +4,9 @@ import { motion } from 'framer-motion';
 import { withAuth, useAuth } from '../lib/withAuth';
 import { useState } from 'react';
 import { LayoutDashboard, KeyRound, LogOut, Mic } from 'lucide-react';
-import GenerateKeyModal from '../componenets/GenerateKeyModal';
-import APIKeysTable, { APIKey } from '../componenets/APIKeysTable';
-import SpeechToText from '../componenets/SpeechToText';
+import GenerateKeyModal from '../components/GenerateKeyModal';
+import APIKeysTable, { APIKey } from '../components/APIKeysTable';
+import SpeechToText from '../components/SpeechToText';
 
 
 type TabType = 'overview' | 'api-keys' | 'speech-to-text';
