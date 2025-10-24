@@ -1,9 +1,12 @@
+import os
+from typing import Optional, List
+
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi import Body
 from pydantic import BaseModel
-from typing import Optional, List
 
 from ..services.ai4bharat import Ai4BharatClient
+from ..services.indictrans2 import get_indictrans2_service
 
 
 router = APIRouter()
@@ -71,8 +74,53 @@ async def stt(
 
 @router.post("/translate")
 async def translate(req: TranslateRequest):
+    """
+    Translate text using IndicTrans2 model (local) or external API.
+    
+    Request:
+    {
+      "text": "How are you?",
+      "source_lang": "eng_Latn",  # Use BCP-47 format with script for IndicTrans2
+      "target_lang": "hin_Deva"
+    }
+    
+    Response:
+    {
+      "translated_text": "आप कैसे हैं?",
+      "source_lang": "eng_Latn",
+      "target_lang": "hin_Deva",
+      "model": "indictrans2-local" or "external-api"
+    }
+    """
     try:
-        return await client.translate(text=req.text, source_lang=req.source_lang, target_lang=req.target_lang, domain=req.domain)
+        # Check if we should use local IndicTrans2 model or external API
+        use_local = os.getenv("USE_LOCAL_INDICTRANS2", "true").lower() == "true"
+        
+        if use_local:
+            # Use local IndicTrans2 model
+            indictrans_service = get_indictrans2_service()
+            translated_text = await indictrans_service.translate(
+                text=req.text,
+                source_lang=req.source_lang,
+                target_lang=req.target_lang
+            )
+            return {
+                "translated_text": translated_text,
+                "source_lang": req.source_lang,
+                "target_lang": req.target_lang,
+                "model": "indictrans2-local"
+            }
+        else:
+            # Use external API (if AI4B_TRANSLATE_URL is configured)
+            result = await client.translate(
+                text=req.text,
+                source_lang=req.source_lang,
+                target_lang=req.target_lang,
+                domain=req.domain
+            )
+            if isinstance(result, dict):
+                result["model"] = "external-api"
+            return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

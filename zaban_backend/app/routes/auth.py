@@ -3,6 +3,9 @@ from fastapi import APIRouter, HTTPException, status, Header, Depends
 from ..schemas.auth import SSOLogin, TokenResponse, LogoutResponse
 from ..services.google_oauth2 import google_oauth2_client
 from ..core.security import create_access_token, verify_token, logout_token
+from ..core.api_key_auth import generate_api_key
+from sqlalchemy.orm import Session
+from ..db.database import get_db
 
 
 router = APIRouter()
@@ -18,7 +21,7 @@ def _domain_allowed(email: str) -> bool:
 
 
 @router.post("/google/login", response_model=TokenResponse)
-async def google_login(payload: SSOLogin) -> TokenResponse:
+async def google_login(payload: SSOLogin, db: Session = Depends(get_db)) -> TokenResponse:
     access_token = await google_oauth2_client.get_access_token(
         payload.code, payload.redirect_uri
     )
@@ -32,6 +35,9 @@ async def google_login(payload: SSOLogin) -> TokenResponse:
 
     # Issue JWT (in a real app, link/create user in DB and use its id)
     token = create_access_token(subject=email)
+    # Optionally generate and store an API key for this user here
+    # raw_key, key_hash = generate_api_key()
+    # Persist ApiKey with user link (requires user table linkage)
     return TokenResponse(access_token=token, token_type="bearer", expires_in=None)
 
 
