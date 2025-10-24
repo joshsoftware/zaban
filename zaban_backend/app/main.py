@@ -1,8 +1,6 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-load_dotenv(override=True)
-from .api.v1 import router as v1_router
+from .routes.v1 import router as v1_router
 from .routes import auth as auth_routes
 
 
@@ -16,6 +14,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Load environment variables from .env file on application startup."""
+    load_dotenv(override=True)
 
 
 @app.get("/up")

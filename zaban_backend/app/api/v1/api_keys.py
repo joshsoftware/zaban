@@ -31,6 +31,7 @@ class ApiKeyResponse(BaseModel):
     is_active: bool
     created_at: str
     revoked_at: Optional[str] = None
+    secret_key_prefix: str = "sk-***"  # Show prefix format without exposing actual key
 
 
 class ApiKeyListResponse(BaseModel):
@@ -83,7 +84,8 @@ def list_api_keys(db: Session = Depends(get_db), subject: str = Depends(_get_cur
             name=key.name,
             is_active=key.is_active,
             created_at=key.created_at.isoformat(),
-            revoked_at=key.revoked_at.isoformat() if key.revoked_at else None
+            revoked_at=key.revoked_at.isoformat() if key.revoked_at else None,
+            secret_key_prefix="sk-***"
         ))
     
     return ApiKeyListResponse(api_keys=api_keys, total=len(api_keys))
@@ -106,7 +108,8 @@ def get_api_key(key_id: uuid.UUID, db: Session = Depends(get_db), subject: str =
         name=key.name,
         is_active=key.is_active,
         created_at=key.created_at.isoformat(),
-        revoked_at=key.revoked_at.isoformat() if key.revoked_at else None
+        revoked_at=key.revoked_at.isoformat() if key.revoked_at else None,
+        secret_key_prefix="sk-***"
     )
 
 
