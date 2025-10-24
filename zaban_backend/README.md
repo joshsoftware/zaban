@@ -1,4 +1,4 @@
-Zabaan Backend (FastAPI)
+Zaban Backend (FastAPI)
 
 This repository uses Python FastAPI for the backend with Google SSO authentication and AI4Bharat services (TTS, STT, Translation, Transliteration).
 

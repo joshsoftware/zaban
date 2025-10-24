@@ -1,6 +1,6 @@
-Zabaan
+Zaban
 
-Zabaan is a SaaS platform offering AI-powered APIs for Text-to-Speech (TTS), Speech-to-Text (STT), Translation, and Transliteration. Users can sign up, generate API keys, and integrate these capabilities into their apps with minimal friction.
+Zaban is a SaaS platform offering AI-powered APIs for Text-to-Speech (TTS), Speech-to-Text (STT), Translation, and Transliteration. Users can sign up, generate API keys, and integrate these capabilities into their apps with minimal friction.
 
 Think of it like an easy-to-integrate alternative to similar AI platforms, with a focus on developer experience.
 
