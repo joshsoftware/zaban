@@ -2,7 +2,6 @@ import os
 from typing import Dict, Any
 import httpx
 from fastapi import HTTPException
-from dotenv import load_dotenv
 
 
 class GoogleOAuth2Client:
@@ -10,8 +9,6 @@ class GoogleOAuth2Client:
     USER_INFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
     def __init__(self) -> None:
-        # Load env from .env if present (aligns with taxsage_backend pattern)
-        load_dotenv()
         self.client_id = os.getenv("GOOGLE_CLIENT_ID")
         self.client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
 
