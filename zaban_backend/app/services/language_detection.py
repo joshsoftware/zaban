@@ -1,10 +1,19 @@
 """
-Language detection service using various methods
+Language detection service using FastText only
 """
-import re
+
 import os
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List
 from dataclasses import dataclass
+
+# Try to import FastText, fall back gracefully if not available
+try:
+    import fasttext
+    import requests
+    FASTTEXT_AVAILABLE = True
+except ImportError:
+    FASTTEXT_AVAILABLE = False
+    print("⚠️  FastText not available; auto-detection disabled")
 
 
 @dataclass
@@ -17,157 +26,199 @@ class LanguageDetectionResult:
 
 
 class LanguageDetector:
-    """Language detection service"""
+    """Language detection service using FastText only"""
     
-    # Language patterns for script-based detection
-    SCRIPT_PATTERNS = {
-        'hin_Deva': r'[\u0900-\u097F]',  # Devanagari
-        'ben_Beng': r'[\u0980-\u09FF]',  # Bengali
-        'tam_Taml': r'[\u0B80-\u0BFF]',  # Tamil
-        'tel_Telu': r'[\u0C00-\u0C7F]',  # Telugu
-        'guj_Gujr': r'[\u0A80-\u0AFF]',  # Gujarati
-        'kan_Knda': r'[\u0C80-\u0CFF]',  # Kannada
-        'mal_Mlym': r'[\u0D00-\u0D7F]',  # Malayalam
-        'mar_Deva': r'[\u0900-\u097F]',  # Marathi (Devanagari)
-        'pan_Guru': r'[\u0A00-\u0A7F]',  # Punjabi (Gurmukhi)
-        'ory_Orya': r'[\u0B00-\u0B7F]',  # Odia
-        'asm_Beng': r'[\u0980-\u09FF]',  # Assamese (Bengali script)
-        'urd_Arab': r'[\u0600-\u06FF]',  # Urdu (Arabic script)
-        'kas_Arab': r'[\u0600-\u06FF]',  # Kashmiri (Arabic script)
-        'kas_Deva': r'[\u0900-\u097F]',  # Kashmiri (Devanagari)
-        'gom_Deva': r'[\u0900-\u097F]',  # Konkani (Devanagari)
-        'mni_Beng': r'[\u0980-\u09FF]',  # Manipuri (Bengali script)
-        'mni_Mtei': r'[\uABC0-\uABFF]',  # Manipuri (Meitei script)
-        'npi_Deva': r'[\u0900-\u097F]',  # Nepali (Devanagari)
-        'san_Deva': r'[\u0900-\u097F]',  # Sanskrit (Devanagari)
-        'sat_Olck': r'[\u1C50-\u1C7F]',  # Santali (Ol Chiki)
-        'snd_Arab': r'[\u0600-\u06FF]',  # Sindhi (Arabic script)
-        'snd_Deva': r'[\u0900-\u097F]',  # Sindhi (Devanagari)
-        'eng_Latn': r'[a-zA-Z]',  # English (Latin script)
+    # FastText language code to BCP-47 mapping
+    # Note: Detection itself is done by FastText. This mapping only normalizes
+    # FastText labels (e.g., "hi", "en") to the BCP-47/FLORES tags required by
+    # downstream components (e.g., IndicTrans2 expects "hin_Deva", "eng_Latn").
+    # We are NOT dependent on this mapping for detection quality, only for
+    # formatting the detected label to the tag schema used by the translator.
+    FASTTEXT_TO_BCP47 = {
+        'hi': 'hin_Deva',      # Hindi
+        'bn': 'ben_Beng',      # Bengali
+        'ta': 'tam_Taml',      # Tamil
+        'te': 'tel_Telu',      # Telugu
+        'gu': 'guj_Gujr',      # Gujarati
+        'kn': 'kan_Knda',      # Kannada
+        'ml': 'mal_Mlym',      # Malayalam
+        'mr': 'mar_Deva',      # Marathi
+        'pa': 'pan_Guru',      # Punjabi
+        'or': 'ory_Orya',      # Odia
+        'as': 'asm_Beng',      # Assamese
+        'ur': 'urd_Arab',      # Urdu
+        'ks': 'kas_Arab',      # Kashmiri
+        'gom': 'gom_Deva',     # Konkani
+        'mni': 'mni_Beng',     # Manipuri
+        'ne': 'npi_Deva',      # Nepali
+        'sa': 'san_Deva',      # Sanskrit
+        'sat': 'sat_Olck',     # Santali
+        'sd': 'snd_Arab',      # Sindhi
+        'en': 'eng_Latn',      # English
+        'es': 'spa_Latn',      # Spanish
+        'fr': 'fra_Latn',      # French
+        'de': 'deu_Latn',      # German
+        'it': 'ita_Latn',      # Italian
+        'pt': 'por_Latn',      # Portuguese
+        'ru': 'rus_Cyrl',      # Russian
+        'zh': 'zho_Hans',      # Chinese (Simplified)
+        'ja': 'jpn_Jpan',      # Japanese
+        'ko': 'kor_Hang',      # Korean
+        'ar': 'ara_Arab',      # Arabic
+        'th': 'tha_Thai',      # Thai
+        'vi': 'vie_Latn',      # Vietnamese
+        'id': 'ind_Latn',      # Indonesian
+        'ms': 'msa_Latn',      # Malay
+        'tl': 'fil_Latn',      # Filipino
+        'he': 'heb_Hebr',      # Hebrew
+        'fa': 'fas_Arab',      # Persian
+        'tr': 'tur_Latn',      # Turkish
+        'sw': 'swa_Latn',      # Swahili
+        'am': 'amh_Ethi',      # Amharic
+        'yo': 'yor_Latn',      # Yoruba
+        'zu': 'zul_Latn',      # Zulu
+        'af': 'afr_Latn',      # Afrikaans
     }
     
-    # Common words for language detection
-    LANGUAGE_WORDS = {
-        'hin_Deva': ['है', 'हैं', 'का', 'की', 'के', 'में', 'से', 'को', 'पर', 'तो', 'या', 'और', 'लेकिन', 'कि', 'यह', 'वह', 'मैं', 'तुम', 'हम', 'आप'],
-        'ben_Beng': ['আছে', 'হয়', 'করে', 'মধ্যে', 'থেকে', 'কে', 'পরে', 'তবে', 'বা', 'এবং', 'কিন্তু', 'যে', 'এটি', 'সে', 'আমি', 'তুমি', 'আমরা', 'আপনি'],
-        'tam_Taml': ['உள்ளது', 'ஆக', 'செய்ய', 'மத்தியில்', 'இருந்து', 'க்கு', 'பிறகு', 'ஆனால்', 'அல்லது', 'மற்றும்', 'ஆனால்', 'என்று', 'இது', 'அது', 'நான்', 'நீ', 'நாங்கள்', 'நீங்கள்'],
-        'tel_Telu': ['ఉంది', 'అవుతుంది', 'చేస్తుంది', 'మధ్య', 'నుండి', 'కు', 'తర్వాత', 'కానీ', 'లేదా', 'మరియు', 'కానీ', 'అని', 'ఇది', 'అది', 'నేను', 'నువ్వు', 'మేము', 'మీరు'],
-        'guj_Gujr': ['છે', 'છે', 'કરે', 'માં', 'થી', 'ને', 'પછી', 'પરંતુ', 'અથવા', 'અને', 'પરંતુ', 'કે', 'આ', 'તે', 'હું', 'તું', 'અમે', 'તમે'],
-        'kan_Knda': ['ಇದೆ', 'ಆಗುತ್ತದೆ', 'ಮಾಡುತ್ತದೆ', 'ಮಧ್ಯೆ', 'ಇಂದ', 'ಗೆ', 'ನಂತರ', 'ಆದರೆ', 'ಅಥವಾ', 'ಮತ್ತು', 'ಆದರೆ', 'ಎಂದು', 'ಇದು', 'ಅದು', 'ನಾನು', 'ನೀನು', 'ನಾವು', 'ನೀವು'],
-        'mal_Mlym': ['ഉണ്ട്', 'ആകുന്നു', 'ചെയ്യുന്നു', 'ഇടയിൽ', 'ഇൽ', 'എന്ന്', 'ശേഷം', 'എന്നാൽ', 'അല്ലെങ്കിൽ', 'ഒപ്പം', 'എന്നാൽ', 'എന്ന്', 'ഇത്', 'അത്', 'ഞാൻ', 'നീ', 'ഞങ്ങൾ', 'നിങ്ങൾ'],
-        'mar_Deva': ['आहे', 'होते', 'करते', 'मध्ये', 'पासून', 'ला', 'नंतर', 'पण', 'किंवा', 'आणि', 'पण', 'की', 'हे', 'ते', 'मी', 'तू', 'आम्ही', 'तुम्ही'],
-        'pan_Guru': ['ਹੈ', 'ਹਨ', 'ਕਰਦਾ', 'ਵਿਚ', 'ਤੋਂ', 'ਨੂੰ', 'ਬਾਅਦ', 'ਪਰ', 'ਜਾਂ', 'ਅਤੇ', 'ਪਰ', 'ਕਿ', 'ਇਹ', 'ਉਹ', 'ਮੈਂ', 'ਤੂੰ', 'ਅਸੀਂ', 'ਤੁਸੀਂ'],
-        'eng_Latn': ['is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'must']
-    }
+    # (No script/word-based constants; FastText-only)
     
     def __init__(self):
-        self.script_patterns = {lang: re.compile(pattern) for lang, pattern in self.SCRIPT_PATTERNS.items()}
+        self.fasttext_model = None
+        if FASTTEXT_AVAILABLE:
+            self._load_fasttext_model()
+    
+    def _load_fasttext_model(self):
+        """Load FastText language identification model"""
+        try:
+            # Try to load from local cache first
+            model_path = os.getenv("FASTTEXT_MODEL_PATH", "lid.176.bin")
+            if os.path.exists(model_path):
+                self.fasttext_model = fasttext.load_model(model_path)
+                print(f"✅ FastText model loaded from {model_path}")
+            else:
+                # Download model if not available
+                print("📥 FastText model not found, downloading...")
+                self._download_fasttext_model()
+        except Exception as e:
+            print(f"⚠️  FastText model loading failed: {e}")
+            print("❌ FastText unavailable for detection")
+            self.fasttext_model = None
+    
+    def _download_fasttext_model(self):
+        """Download FastText language identification model"""
+        try:
+            model_url = "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin"
+            model_path = "lid.176.bin"
+            
+            print(f"📥 Downloading FastText model from {model_url}")
+            response = requests.get(model_url, stream=True)
+            response.raise_for_status()
+            
+            with open(model_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            
+            self.fasttext_model = fasttext.load_model(model_path)
+            print(f"✅ FastText model downloaded and loaded from {model_path}")
+            
+        except Exception as e:
+            print(f"❌ FastText model download failed: {e}")
+            print("❌ FastText model unavailable; detection disabled")
+            self.fasttext_model = None
     
     def detect_language(self, text: str) -> LanguageDetectionResult:
         """
-        Detect the language of the given text using multiple methods.
-        Returns the most confident detection result.
+        Detect the language of the given text using FastText only.
+        Raises an error if FastText is unavailable.
         """
         if not text or not text.strip():
+            raise ValueError("Cannot auto-detect language from empty text")
+
+        # FastText-only detection
+        fasttext_result = self._detect_by_fasttext(text)
+        if fasttext_result is None:
+            raise RuntimeError("FastText detection unavailable. Ensure FastText is installed and model is loaded.")
+        return fasttext_result
+    
+    def _detect_by_fasttext(self, text: str) -> Optional[LanguageDetectionResult]:
+        """Detect language using FastText model"""
+        if not self.fasttext_model or not FASTTEXT_AVAILABLE:
+            return None
+        
+        try:
+            # FastText requires at least 1 character
+            if len(text.strip()) < 1:
+                return None
+            
+            # Get prediction from FastText
+            predictions = self.fasttext_model.predict(text.strip(), k=1)
+            if not predictions or not predictions[0]:
+                return None
+            
+            # Extract language code and confidence
+            fasttext_lang = predictions[0][0].replace('__label__', '')
+            confidence = float(predictions[1][0])
+            
+            # Convert FastText language code to BCP-47 used by IndicTrans2
+            # (pure normalization step; detection already decided by FastText)
+            bcp47_lang = self.FASTTEXT_TO_BCP47.get(fasttext_lang, fasttext_lang)
+            
             return LanguageDetectionResult(
-                detected_lang="eng_Latn",
-                confidence=0.0,
-                method="default",
+                detected_lang=bcp47_lang,
+                confidence=confidence,
+                method="fasttext",
                 is_auto_detected=True
             )
-        
-        # Method 1: Script-based detection
-        script_result = self._detect_by_script(text)
-        
-        # Method 2: Word-based detection
-        word_result = self._detect_by_words(text)
-        
-        # Method 3: Character frequency analysis
-        freq_result = self._detect_by_frequency(text)
-        
-        # Combine results and choose the best one
-        results = [script_result, word_result, freq_result]
-        results = [r for r in results if r is not None]
-        
-        if not results:
-            return LanguageDetectionResult(
-                detected_lang="eng_Latn",
-                confidence=0.0,
-                method="default",
-                is_auto_detected=True
-            )
-        
-        # Choose the result with highest confidence
-        best_result = max(results, key=lambda x: x.confidence)
-        return best_result
+            
+        except Exception as e:
+            print(f"⚠️  FastText detection failed: {e}")
+            return None
     
-    def _detect_by_script(self, text: str) -> Optional[LanguageDetectionResult]:
-        """Detect language based on script/character patterns"""
-        text_clean = text.strip()
-        if not text_clean:
-            return None
-        
-        script_scores = {}
-        for lang, pattern in self.script_patterns.items():
-            matches = pattern.findall(text_clean)
-            if matches:
-                score = len(matches) / len(text_clean)
-                script_scores[lang] = score
-        
-        if not script_scores:
-            return None
-        
-        best_lang = max(script_scores, key=script_scores.get)
-        confidence = script_scores[best_lang]
-        
-        return LanguageDetectionResult(
-            detected_lang=best_lang,
-            confidence=confidence,
-            method="script",
-            is_auto_detected=True
-        )
-    
-    def _detect_by_words(self, text: str) -> Optional[LanguageDetectionResult]:
-        """Detect language based on common words"""
-        text_lower = text.lower().strip()
-        if not text_lower:
-            return None
-        
-        word_scores = {}
-        for lang, words in self.LANGUAGE_WORDS.items():
-            score = 0
-            for word in words:
-                if word in text_lower:
-                    score += 1
-            if score > 0:
-                word_scores[lang] = score / len(words)
-        
-        if not word_scores:
-            return None
-        
-        best_lang = max(word_scores, key=word_scores.get)
-        confidence = min(word_scores[best_lang], 1.0)
-        
-        return LanguageDetectionResult(
-            detected_lang=best_lang,
-            confidence=confidence,
-            method="words",
-            is_auto_detected=True
-        )
-    
-    def _detect_by_frequency(self, text: str) -> Optional[LanguageDetectionResult]:
-        """Detect language based on character frequency analysis"""
-        # This is a simplified version - in practice, you'd use more sophisticated analysis
-        # For now, we'll use script detection as a fallback
-        return self._detect_by_script(text)
+    # Removed script/word/frequency detection helpers
     
     def get_supported_languages(self) -> List[str]:
-        """Get list of supported languages for auto-detection"""
-        return list(self.SCRIPT_PATTERNS.keys())
+        """Get list of supported languages for auto-detection (FastText only)"""
+        if self.fasttext_model and FASTTEXT_AVAILABLE:
+            return list(self.FASTTEXT_TO_BCP47.values())
+        return []
     
     def is_language_supported(self, lang: str) -> bool:
-        """Check if a language is supported for auto-detection"""
-        return lang in self.SCRIPT_PATTERNS
+        """Check if a language is supported for auto-detection (FastText only)"""
+        if self.fasttext_model and FASTTEXT_AVAILABLE:
+            return lang in self.FASTTEXT_TO_BCP47.values()
+        return False
+    
+    def get_detection_method(self) -> str:
+        """Get the current detection method being used"""
+        return "fasttext" if (self.fasttext_model and FASTTEXT_AVAILABLE) else "unavailable"
+    
+    def _get_supported_indic_languages(self) -> List[str]:
+        """Get list of languages supported by IndicTrans2"""
+        return [
+            'eng_Latn',    # English
+            'hin_Deva',    # Hindi
+            'ben_Beng',    # Bengali
+            'tam_Taml',    # Tamil
+            'tel_Telu',    # Telugu
+            'guj_Gujr',    # Gujarati
+            'kan_Knda',    # Kannada
+            'mal_Mlym',    # Malayalam
+            'mar_Deva',    # Marathi
+            'pan_Guru',    # Punjabi
+            'ory_Orya',    # Odia
+            'asm_Beng',    # Assamese
+            'urd_Arab',    # Urdu
+            'kas_Arab',    # Kashmiri (Arabic)
+            'kas_Deva',    # Kashmiri (Devanagari)
+            'gom_Deva',    # Konkani
+            'mni_Beng',    # Manipuri (Bengali)
+            'mni_Mtei',    # Manipuri (Meitei)
+            'npi_Deva',    # Nepali
+            'san_Deva',    # Sanskrit
+            'sat_Olck',    # Santali
+            'snd_Arab',    # Sindhi (Arabic)
+            'snd_Deva',    # Sindhi (Devanagari)
+        ]
 
 
 # Global detector instance
