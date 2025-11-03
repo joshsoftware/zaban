@@ -1,7 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from .routes.v1 import router as v1_router
+
+# Load environment variables as early as possible so modules that read env at
+# import time (e.g., OAuth clients) receive the correct values.
+load_dotenv(override=True)
+
+# Use the consolidated API v1 router that includes translation, TTS/STT,
+# transliteration, and API key endpoints
+from .api.v1 import router as v1_router
 from .routes import auth as auth_routes
 
 
