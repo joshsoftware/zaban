@@ -27,6 +27,7 @@ dependencies = [
   "fasttext>=0.9.2",
   "requests>=2.31",
   "numpy<2.0",  # Pin NumPy for FastText compatibility
+  "openai-whisper>=20231117",  # Whisper STT support
 ]
 
 [tool.uv]

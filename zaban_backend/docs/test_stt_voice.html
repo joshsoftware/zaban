@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STT Voice Test - Whisper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-record {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-record:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        
+        .btn-record.recording {
+            background: #e74c3c;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .btn-stop {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-stop:hover {
+            background: #c0392b;
+        }
+        
+        .btn-upload {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-upload:hover {
+            background: #229954;
+        }
+        
+        .btn-test {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-test:hover {
+            background: #2980b9;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .result-box {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .result-box h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .result-text {
+            color: #555;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        
+        .result-meta {
+            font-size: 12px;
+            color: #888;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .result-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .audio-preview {
+            margin-top: 15px;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .file-label {
+            display: block;
+            padding: 12px;
+            background: #f8f9fa;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .file-label:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+        
+        .recording-indicator {
+            display: none;
+            text-align: center;
+            color: #e74c3c;
+            font-weight: 600;
+            margin: 10px 0;
+        }
+        
+        .recording-indicator.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Speech-to-Text Test</h1>
+        <p class="subtitle">Test Whisper STT API with voice recording or file upload</p>
+        
+        <!-- API Key Input -->
+        <div class="input-group">
+            <label for="apiKey">API Key (X-API-Key)</label>
+            <input type="text" id="apiKey" placeholder="sk-..." value="">
+        </div>
+        
+        <!-- Base URL Input -->
+        <div class="input-group">
+            <label for="baseUrl">Base URL</label>
+            <input type="text" id="baseUrl" placeholder="http://localhost:8000" value="http://localhost:8000">
+        </div>
+        
+        <!-- Language Input (Optional) -->
+        <div class="input-group">
+            <label for="language">Language (Optional - leave empty for auto-detection)</label>
+            <input type="text" id="language" placeholder="en, hi, eng_Latn, etc." value="">
+        </div>
+        
+        <!-- Status Messages -->
+        <div id="status" class="status"></div>
+        
+        <!-- Recording Controls -->
+        <div class="button-group">
+            <button id="recordBtn" class="btn-record">
+                🎤 Record Voice
+            </button>
+            <button id="stopBtn" class="btn-stop" disabled>
+                ⏹️ Stop
+            </button>
+        </div>
+        
+        <div id="recordingIndicator" class="recording-indicator">
+            ● Recording... Speak now
+        </div>
+        
+        <!-- Audio Preview -->
+        <div id="audioPreview" class="audio-preview" style="display: none;">
+            <audio id="audioPlayer" controls style="width: 100%;"></audio>
+        </div>
+        
+        <!-- Upload Controls -->
+        <div class="button-group">
+            <div class="file-input-wrapper">
+                <label for="fileInput" class="file-label">
+                    📁 Or Upload Audio File (WAV, MP3, M4A, etc.)
+                </label>
+                <input type="file" id="fileInput" accept="audio/*">
+            </div>
+        </div>
+        
+        <!-- Test Button -->
+        <button id="testBtn" class="btn-test" style="width: 100%; margin-top: 10px;">
+            🚀 Test with Recorded/Uploaded Audio
+        </button>
+        
+        <!-- Results -->
+        <div id="resultBox" class="result-box" style="display: none;">
+            <h3>📝 Transcription Result</h3>
+            <div id="resultText" class="result-text"></div>
+            <div id="resultMeta" class="result-meta"></div>
+        </div>
+    </div>
+    
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordedAudioBlob = null;
+        let audioStream = null;
+        let chosenMimeType = null;
+
+        // --- WAV 16k mono conversion helpers ---
+        async function blobToArrayBuffer(blob) {
+            return await blob.arrayBuffer();
+        }
+
+        function interleaveToMono(float32ArrayChannels) {
+            if (float32ArrayChannels.length === 1) return float32ArrayChannels[0];
+            const length = float32ArrayChannels[0].length;
+            const mono = new Float32Array(length);
+            for (let i = 0; i < length; i++) {
+                let sum = 0;
+                for (let ch = 0; ch < float32ArrayChannels.length; ch++) {
+                    sum += float32ArrayChannels[ch][i] || 0;
+                }
+                mono[i] = sum / float32ArrayChannels.length;
+            }
+            return mono;
+        }
+
+        function encodeWavPCM16(monoFloat32, sampleRate) {
+            const bufferLength = monoFloat32.length;
+            const bytesPerSample = 2;
+            const blockAlign = 1 * bytesPerSample; // mono
+            const byteRate = sampleRate * blockAlign;
+            const dataSize = bufferLength * bytesPerSample;
+            const headerSize = 44;
+            const totalSize = headerSize + dataSize;
+            const buffer = new ArrayBuffer(totalSize);
+            const view = new DataView(buffer);
+
+            function writeString(offset, str) {
+                for (let i = 0; i < str.length; i++) {
+                    view.setUint8(offset + i, str.charCodeAt(i));
+                }
+            }
+
+            // RIFF header
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(8, 'WAVE');
+
+            // fmt chunk
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true); // PCM
+            view.setUint16(20, 1, true);  // audio format = PCM
+            view.setUint16(22, 1, true);  // channels = 1 (mono)
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, 16, true); // bits per sample
+
+            // data chunk
+            writeString(36, 'data');
+            view.setUint32(40, dataSize, true);
+
+            // PCM samples
+            let offset = 44;
+            for (let i = 0; i < bufferLength; i++, offset += 2) {
+                let s = Math.max(-1, Math.min(1, monoFloat32[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        async function convertToWav16kMono(blob) {
+            try {
+                const arrayBuffer = await blobToArrayBuffer(blob);
+                const audioCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 16000 * 60, 16000); // up to 60s buffer
+                // To decode we need a regular AudioContext
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
+                const channels = [];
+                for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
+                    channels.push(decoded.getChannelData(ch));
+                }
+                const mono = interleaveToMono(channels);
+                // resample to 16k
+                const srcRate = decoded.sampleRate;
+                if (srcRate === 16000) {
+                    // Already 16k
+                    ctx.close();
+                    return encodeWavPCM16(mono, 16000);
+                }
+
+                // Resample using OfflineAudioContext
+                const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, Math.ceil(mono.length * 16000 / srcRate), 16000);
+                const buffer = offlineCtx.createBuffer(1, mono.length, srcRate);
+                buffer.copyToChannel(mono, 0, 0);
+                const source = offlineCtx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(offlineCtx.destination);
+                source.start(0);
+                const rendered = await offlineCtx.startRendering();
+                const renderedMono = rendered.getChannelData(0);
+                ctx.close();
+                return encodeWavPCM16(renderedMono, 16000);
+            } catch (e) {
+                console.error('WAV conversion failed, using original blob:', e);
+                return blob; // fallback
+            }
+        }
+        
+        const recordBtn = document.getElementById('recordBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const testBtn = document.getElementById('testBtn');
+        const fileInput = document.getElementById('fileInput');
+        const statusDiv = document.getElementById('status');
+        const resultBox = document.getElementById('resultBox');
+        const resultText = document.getElementById('resultText');
+        const resultMeta = document.getElementById('resultMeta');
+        const audioPreview = document.getElementById('audioPreview');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const recordingIndicator = document.getElementById('recordingIndicator');
+        
+        // Show status message
+        function showStatus(message, type = 'info') {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Start recording
+        recordBtn.addEventListener('click', async () => {
+            try {
+                audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Pick a supported mime type for recording (browser-dependent)
+                const candidates = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/ogg;codecs=opus',
+                    'audio/ogg',
+                    'audio/mp4',
+                    'audio/mpeg',
+                    'audio/wav'
+                ];
+                chosenMimeType = null;
+                for (const cand of candidates) {
+                    if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(cand)) {
+                        chosenMimeType = cand;
+                        break;
+                    }
+                }
+                mediaRecorder = new MediaRecorder(audioStream, chosenMimeType ? { mimeType: chosenMimeType } : undefined);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blobType = chosenMimeType || (audioChunks[0] && audioChunks[0].type) || 'audio/webm';
+                    recordedAudioBlob = new Blob(audioChunks, { type: blobType });
+                    const audioUrl = URL.createObjectURL(recordedAudioBlob);
+                    audioPlayer.src = audioUrl;
+                    audioPreview.style.display = 'block';
+                    const kb = (recordedAudioBlob.size / 1024).toFixed(2);
+                    showStatus(`Recording stopped (${kb} KB, ${recordedAudioBlob.type}). Click "Test" to transcribe.`, 'success');
+                };
+                
+                mediaRecorder.start();
+                recordBtn.disabled = true;
+                recordBtn.classList.add('recording');
+                stopBtn.disabled = false;
+                recordingIndicator.classList.add('active');
+                showStatus('Recording started. Speak now...', 'info');
+            } catch (error) {
+                showStatus('Error accessing microphone: ' + error.message, 'error');
+            }
+        });
+        
+        // Stop recording
+        stopBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                if (audioStream) {
+                    audioStream.getTracks().forEach(track => track.stop());
+                }
+                recordBtn.disabled = false;
+                recordBtn.classList.remove('recording');
+                stopBtn.disabled = true;
+                recordingIndicator.classList.remove('active');
+            }
+        });
+        
+        // File upload
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                recordedAudioBlob = file;
+                const audioUrl = URL.createObjectURL(file);
+                audioPlayer.src = audioUrl;
+                audioPreview.style.display = 'block';
+                showStatus(`File selected: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, 'success');
+            }
+        });
+        
+        // Test transcription
+        testBtn.addEventListener('click', async () => {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const baseUrl = document.getElementById('baseUrl').value.trim();
+            const language = document.getElementById('language').value.trim();
+            
+            if (!apiKey) {
+                showStatus('Please enter your API Key', 'error');
+                return;
+            }
+            
+            if (!baseUrl) {
+                showStatus('Please enter Base URL', 'error');
+                return;
+            }
+            
+            // Block testing while recording is active
+            if (mediaRecorder && mediaRecorder.state && mediaRecorder.state !== 'inactive') {
+                showStatus('Please stop the recording before testing.', 'error');
+                return;
+            }
+
+            // Use uploaded file or recorded audio
+            let audioBlob = recordedAudioBlob;
+            if (fileInput.files.length > 0) {
+                audioBlob = fileInput.files[0];
+            }
+            
+            if (!audioBlob) {
+                showStatus('Please record audio or upload a file first', 'error');
+                return;
+            }
+
+            if (!audioBlob.size) {
+                showStatus('Recorded audio is empty (0 bytes). Please record again.', 'error');
+                return;
+            }
+
+            // Convert to WAV 16k mono for best Whisper results
+            showStatus('Converting audio to WAV 16k mono...', 'info');
+            const wavBlob = await convertToWav16kMono(audioBlob);
+            
+            testBtn.disabled = true;
+            testBtn.textContent = '⏳ Transcribing...';
+            showStatus('Sending audio to STT API...', 'info');
+            resultBox.style.display = 'none';
+            
+            try {
+                const formData = new FormData();
+                formData.append('audio', wavBlob, 'recording.wav');
+                formData.append('auto_detect', language ? 'false' : 'true');
+                if (language) {
+                    formData.append('lang', language);
+                }
+                
+                const response = await fetch(`${baseUrl}/api/v1/stt`, {
+                    method: 'POST',
+                    headers: {
+                        'X-API-Key': apiKey
+                    },
+                    body: formData
+                });
+                
+                let data;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    data = { detail: `Server error: ${response.status} ${response.statusText}` };
+                }
+                
+                if (response.ok) {
+                    resultText.textContent = data.text || 'No text transcribed';
+                    let metaHtml = '';
+                    if (data.language) {
+                        metaHtml += `<span>🌍 Language: <strong>${data.language}</strong></span>`;
+                    }
+                    if (data.language_probability !== null && data.language_probability !== undefined) {
+                        metaHtml += `<span>📊 Confidence: <strong>${(data.language_probability * 100).toFixed(1)}%</strong></span>`;
+                    }
+                    if (data.model) {
+                        metaHtml += `<span>🤖 Model: <strong>${data.model}</strong></span>`;
+                    }
+                    if (data.auto_detected) {
+                        metaHtml += `<span>✨ Auto-detected</span>`;
+                    }
+                    resultMeta.innerHTML = metaHtml;
+                    resultBox.style.display = 'block';
+                    showStatus('Transcription successful!', 'success');
+                } else {
+                    const errorMsg = data.detail || data.message || response.statusText || 'Unknown error';
+                    showStatus(`Error ${response.status}: ${errorMsg}`, 'error');
+                }
+            } catch (error) {
+                let errorMsg = error.message || 'Unknown error';
+                
+                // Provide helpful error messages for common issues
+                if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+                    errorMsg = `Connection failed. Check:\n1. Server is running at ${baseUrl}\n2. CORS is enabled\n3. Network connection is active`;
+                } else if (errorMsg.includes('CORS')) {
+                    errorMsg = 'CORS error. Make sure CORS is enabled on the server.';
+                }
+                
+                showStatus(`Error: ${errorMsg}`, 'error');
+                console.error('Full error:', error);
+            } finally {
+                testBtn.disabled = false;
+                testBtn.textContent = '🚀 Test with Recorded/Uploaded Audio';
+            }
+        });
+        
+        // Load API key from localStorage if available
+        window.addEventListener('load', () => {
+            const savedApiKey = localStorage.getItem('stt_api_key');
+            const savedBaseUrl = localStorage.getItem('stt_base_url');
+            if (savedApiKey) {
+                document.getElementById('apiKey').value = savedApiKey;
+            }
+            if (savedBaseUrl) {
+                document.getElementById('baseUrl').value = savedBaseUrl;
+            }
+        });
+        
+        // Save API key to localStorage
+        document.getElementById('apiKey').addEventListener('change', (e) => {
+            localStorage.setItem('stt_api_key', e.target.value);
+        });
+        
+        document.getElementById('baseUrl').addEventListener('change', (e) => {
+            localStorage.setItem('stt_base_url', e.target.value);
+        });
+    </script>
+</body>
+</html>
+
