@@ -28,6 +28,10 @@ dependencies = [
   "requests>=2.31",
   "numpy<2.0",  # Pin NumPy for FastText compatibility
   "openai-whisper>=20231117",  # Whisper STT support
+  "faster-whisper>=0.10.0",  # Faster Whisper STT support (CTranslate2 backend)
+  "ctranslate2>=4.0.0",  # Required by faster-whisper
+  "soundfile>=0.12.0",  # Required by faster-whisper for audio processing
+  "parler-tts>=0.1.0",  # IndicParler TTS support
 ]
 
 [tool.uv]

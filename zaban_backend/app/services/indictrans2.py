@@ -2,7 +2,6 @@ import os
 import torch
 from typing import List, Optional
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-from IndicTransToolkit import IndicProcessor
 
 
 class IndicTrans2Service:
@@ -45,6 +44,16 @@ class IndicTrans2Service:
             return
         
         print("Loading IndicTrans2 models... This may take a few minutes on first run.")
+        
+        # Lazy import IndicTransToolkit only when models are actually being loaded
+        try:
+            from IndicTransToolkit import IndicProcessor
+        except ImportError as e:
+            raise ImportError(
+                "IndicTransToolkit is not installed. Please install it with:\n"
+                "pip install IndicTransToolkit\n"
+                "or install from source: https://github.com/AI4Bharat/IndicTrans2"
+            ) from e
         
         # Load En->Indic model (200M distilled version for faster inference)
         en_indic_name = os.getenv("INDICTRANS2_EN_INDIC_MODEL", "ai4bharat/indictrans2-en-indic-dist-200M")

@@ -8,14 +8,10 @@ from fastapi import Body
 from pydantic import BaseModel
 
 from ..services.ai4bharat import Ai4BharatClient
-from ..services.indicwav2vec_stt import get_indicwav2vec_stt_service
 from ..services.language_detection import get_language_detector
 
 
 router = APIRouter()
-
-# Optional faster-whisper detector cache
-_fw_model = None
 
 
 class TtsRequest(BaseModel):
@@ -45,10 +41,108 @@ class TransliterateRequest(BaseModel):
 client = Ai4BharatClient()
 
 
-@router.post("/tts")
-async def tts(req: TtsRequest):
+@router.post("/detect-language")
+async def detect_language(body: dict = Body(...)):
+    """
+    Detect language from text using FastText.
+    
+    Parameters:
+    - text: Text to detect language from (required)
+    
+    Returns:
+    - detected_lang: Language code in BCP-47 format (e.g., hin_Deva, guj_Gujr)
+    - confidence: Detection confidence score (0-1)
+    - method: Detection method used (fasttext)
+    """
     try:
-        return await client.tts(text=req.text, lang=req.lang, speaker=req.speaker, sample_rate=req.sample_rate, fmt=req.format)
+        if not body or "text" not in body:
+            raise HTTPException(status_code=400, detail="'text' is required")
+        
+        text = body.get("text")
+        if not text or not isinstance(text, str) or not text.strip():
+            raise HTTPException(status_code=400, detail="'text' must be a non-empty string")
+        
+        # Use language detector
+        from ..services.language_detection import get_language_detector
+        
+        detector = get_language_detector()
+        result = detector.detect_language(text)
+        
+        return {
+            "detected_lang": result.detected_lang,
+            "confidence": result.confidence,
+            "method": result.method,
+            "is_auto_detected": result.is_auto_detected
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/tts")
+async def tts(body: Optional[dict] = Body(None)):
+    """Text-to-Speech using IndicParler TTS.
+    
+    Parameters:
+    - text: Text to convert to speech (required)
+    - language: Language code (optional, 2-letter ISO 639-1, auto-detects if not provided)
+    - voice_description: Description of desired voice characteristics (optional)
+    - speaker: Speaker name for consistent voice (optional)
+    
+    Supported languages (21): as, bn, brx, en, gu, hi, kn, ks, ml, mni, mr, ne, or, pa, sa, sd, ta, te, ur, doi, kok
+    
+    Returns: Audio file (WAV format) with metadata in headers
+    """
+    from fastapi.responses import Response
+    
+    try:
+        if body is None:
+            raise HTTPException(status_code=400, detail="Request body is required")
+        
+        text = body.get("text")
+        if not text:
+            raise HTTPException(status_code=400, detail="'text' is required")
+        
+        language = body.get("language") or body.get("lang")
+        voice_description = body.get("voice_description") or body.get("description")
+        speaker = body.get("speaker")
+        
+        # Use IndicParler TTS
+        from ..services.indicparler_tts import get_indicparler_tts_service
+        
+        try:
+            indicparler_service = get_indicparler_tts_service()
+            result = await indicparler_service.synthesize(
+                text=text,
+                language=language,
+                voice_description=voice_description,
+                speaker=speaker,
+            )
+            
+            # Return audio as WAV file
+            return Response(
+                content=result.audio_data,
+                media_type="audio/wav",
+                headers={
+                    "X-Sample-Rate": str(result.sample_rate),
+                    "X-Language": result.language,
+                    "X-Model": result.model,
+                    "X-Speaker": result.speaker or "default",
+                    "Content-Disposition": 'attachment; filename="speech.wav"'
+                }
+            )
+        except (ImportError, RuntimeError) as e:
+            # Fallback to AI4Bharat client if IndicParler is not available
+            error_msg = str(e)
+            if "IndicParler" in error_msg or "parler" in error_msg.lower():
+                raise HTTPException(
+                    status_code=500,
+                    detail="IndicParler TTS is not available. Please install: pip install parler-tts torch transformers soundfile"
+                )
+            raise
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -57,19 +151,28 @@ async def tts(req: TtsRequest):
 async def stt(
     audio: Optional[UploadFile] = File(None),
     lang: Optional[str] = Form(None),
+    model: Optional[str] = Form("whisper"),
     format: Optional[str] = Form(None),
     body: Optional[dict] = Body(None)
 ):
-    """Speech-to-Text: Whisper auto-detect for language ONLY, Indic (Wav2Vec) for transcription.
+    """Speech-to-Text with model selection.
 
+    Parameters:
+    - audio: Audio file (supports WAV, MP3, M4A, WebM, OGG, FLAC, etc.)
+    - lang: Language code (optional, auto-detected if not provided)
+    - model: STT model to use - "whisper" (default) or "ai4bharat"
+    - format: Output format (optional)
+
+    Models:
+    - whisper: faster-whisper (4-5x faster than OpenAI Whisper, supports 100+ languages)
+    - ai4bharat: Vistaar IndicWhisper (best WER for Indian languages: hi, mr, ta, te, bn, gu, kn, ml, pa, or, sa, ur)
+    
     Behavior:
-    - If `lang` provided: use it directly for IndicConformer
-    - Else: standard Whisper language detection (single window, no priors)
-    - Transcription: IndicConformer only (no Whisper fallback)
+    - If lang not provided: faster-whisper auto-detects language
+    - If model=ai4bharat: Uses faster-whisper for detection, then Vistaar IndicWhisper for transcription
+    - If model=whisper: Uses faster-whisper (best for all languages)
     """
     try:
-        use_indicwav2vec = os.getenv("USE_INDICWAV2VEC", "false").lower() == "true"
-
         # Prefer multipart upload
         if audio is not None:
             audio_bytes = await audio.read()
@@ -92,80 +195,192 @@ async def stt(
                     incoming_suffix = '.m4a'
                 else:
                     incoming_suffix = '.webm'
-            # IndicWav2Vec pipeline (no NeMo) - DISABLED, using Whisper
-            if False:  # use_indicwav2vec disabled
-                detected_lang = None
+            
+            # Model selection: whisper (faster-whisper) or ai4bharat (vistaar-indicwhisper)
+            model_choice = (model or "whisper").lower()
+            
+            if model_choice == "ai4bharat":
+                # Use Vistaar IndicWhisper (best WER for Indian languages)
+                # Fallback to faster-whisper if Vistaar is not available
+                from ..services.faster_whisper_stt import get_faster_whisper_stt_service, FASTER_WHISPER_AVAILABLE
+                
+                detected_lang = lang
                 detected_prob = None
-                if lang:
-                    detected_lang = lang.split('_')[0]
-                else:
-                    # Language detection
-                    if os.getenv("USE_FASTER_WHISPER_DETECT", "false").lower() == "true":
-                        # Use faster-whisper to avoid numba/llvmlite
-                        try:
-                            from faster_whisper import WhisperModel
-                            fw = globals().get("_fw_model")
-                            if fw is None:
-                                model_name = os.getenv("WHISPER_MODEL", "large-v3")
-                                fw = WhisperModel(
-                                    model_name,
-                                    device="cuda" if os.getenv("USE_CUDA", "false").lower()=="true" else "cpu",
-                                )
-                                globals()["_fw_model"] = fw
-                            # Write temp file
-                            import tempfile
-                            suffix = incoming_suffix or '.wav'
-                            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
-                                tf.write(audio_bytes)
-                                tmp_path = tf.name
-                            try:
-                                segments, info = fw.transcribe(tmp_path, beam_size=1, vad_filter=False)
-                                detected_lang = info.language
-                                detected_prob = float(info.language_probability) if hasattr(info, 'language_probability') else None
-                            finally:
-                                try:
-                                    os.unlink(tmp_path)
-                                except Exception:
-                                    pass
-                        except Exception:
-                            # Fallback: no detection
-                            detected_lang = None
-                            detected_prob = None
+                
+                # Debug: Log received language parameter
+                print(f"🔍 AI4Bharat STT - Received lang parameter: '{lang}'")
+                
+                # Normalize language code if provided (e.g., "hin_Deva" -> "hi", "hi" -> "hi")
+                if detected_lang:
+                    if "_" in detected_lang:
+                        detected_lang = detected_lang.split("_")[0]
+                    detected_lang = detected_lang[:2].lower()
+                    print(f"🔍 AI4Bharat STT - Normalized to: '{detected_lang}'")
+                
+                # Try Vistaar IndicWhisper first
+                try:
+                    from ..services.vistaar_indicwhisper_stt import get_vistaar_indicwhisper_stt_service
+                    
+                    # Step 1: Detect language if not provided (using faster-whisper)
+                    if not detected_lang:
+                        if FASTER_WHISPER_AVAILABLE:
+                            fw_service = get_faster_whisper_stt_service()
+                            detect_result = await fw_service.transcribe(
+                                audio_bytes,
+                                language=None,
+                                auto_detect_language=True,
+                                model_size=None,
+                                file_suffix=incoming_suffix,
+                            )
+                            detected_lang = detect_result.language
+                            detected_prob = detect_result.language_probability
+                            # Extract 2-letter code from BCP-47
+                            if "_" in detected_lang:
+                                detected_lang = detected_lang.split("_")[0]
+                            detected_lang = detected_lang[:2]
+                        else:
+                            raise HTTPException(
+                                status_code=400,
+                                detail="Language detection requires faster-whisper. Please provide 'lang' parameter or install faster-whisper."
+                            )
+                    
+                    # Step 2: Transcribe with Vistaar IndicWhisper
+                    print(f"🎯 AI4Bharat STT - Loading model for language: '{detected_lang}'")
+                    vistaar_service = get_vistaar_indicwhisper_stt_service()
+                    result = await vistaar_service.transcribe(
+                        audio_bytes,
+                        language=detected_lang,
+                        file_suffix=incoming_suffix,
+                    )
+                    return {
+                        "text": result.text,
+                        "language": result.language,
+                        "language_probability": detected_prob,
+                        "model": result.model,
+                        "auto_detected": lang is None,
+                    }
+                except (ImportError, RuntimeError, Exception) as e:
+                    # Fallback to faster-whisper if Vistaar is not available
+                    error_msg = str(e)
+                    if "transformers" in error_msg or "Vistaar" in error_msg or "not available" in error_msg.lower():
+                        print(f"⚠️  Vistaar IndicWhisper not available ({error_msg}), falling back to faster-whisper")
+                        if not FASTER_WHISPER_AVAILABLE:
+                            raise HTTPException(
+                                status_code=500,
+                                detail="Vistaar IndicWhisper is not available and faster-whisper is not installed. Please install faster-whisper: pip install faster-whisper ctranslate2"
+                            )
+                        # Use faster-whisper as fallback
+                        fw_service = get_faster_whisper_stt_service()
+                        result = await fw_service.transcribe(
+                            audio_bytes,
+                            language=detected_lang if detected_lang else None,
+                            auto_detect_language=(not detected_lang),
+                            model_size=None,
+                            file_suffix=incoming_suffix,
+                        )
+                        return {
+                            "text": result.text,
+                            "language": result.language,
+                            "language_probability": result.language_probability,
+                            "model": f"faster-whisper-fallback-{result.model}",
+                            "auto_detected": lang is None,
+                        }
                     else:
-                        # Use standard whisper service detection (may require numba)
-                        from ..services.whisper_stt import get_whisper_stt_service
-                        _ws = get_whisper_stt_service()
-                        detected_lang, detected_prob = await _ws.detect_language_standard(audio_bytes, incoming_suffix)
-                if not detected_lang:
-                    raise HTTPException(status_code=400, detail="Language detection failed. Provide 'lang' explicitly.")
-
-                indic_service = get_indicwav2vec_stt_service()
-                indic_result = await indic_service.transcribe(audio_bytes, language=detected_lang)
-                return {
-                    "text": indic_result.text,
-                    "language": detected_lang,
-                    "language_probability": detected_prob,
-                    "model": indic_result.model,
-                    "auto_detected": lang is None,
-                }
+                        raise
             else:
-                # Use faster-whisper (no llvmlite dependency)
-                from ..services.faster_whisper_stt import get_faster_whisper_stt_service
-                fw_service = get_faster_whisper_stt_service()
-                result = await fw_service.transcribe(
-                    audio_bytes,
-                    language=lang,
-                    auto_detect_language=(lang is None),
-                    model_size=None,
-                    file_suffix=incoming_suffix,
-                )
-                return {
-                    "text": result.text,
-                    "language": result.language,
-                    "language_probability": result.language_probability,
-                    "model": result.model,
-                    "auto_detected": lang is None,
-                }
+                # Use faster-whisper (supports 100+ languages), fallback to openai-whisper if needed
+                from ..services.faster_whisper_stt import get_faster_whisper_stt_service, FASTER_WHISPER_AVAILABLE
+                
+                if FASTER_WHISPER_AVAILABLE:
+                    try:
+                        fw_service = get_faster_whisper_stt_service()
+                        # Treat empty string as None to enable auto-detection
+                        normalized_lang = None
+                        if lang is not None and isinstance(lang, str) and lang.strip() != "":
+                            normalized_lang = lang
+                        result = await fw_service.transcribe(
+                            audio_bytes,
+                            language=normalized_lang,
+                            auto_detect_language=(normalized_lang is None),
+                            model_size=None,
+                            file_suffix=incoming_suffix,
+                        )
+                        return {
+                            "text": result.text,
+                            "language": result.language,
+                            "language_probability": result.language_probability,
+                            "model": result.model,
+                            "auto_detected": normalized_lang is None,
+                        }
+                    except RuntimeError as e:
+                        if "faster-whisper is not installed" in str(e):
+                            print("⚠️  faster-whisper runtime error, falling back to openai-whisper")
+                        else:
+                            raise
+                
+                # Fallback to openai-whisper if faster-whisper is not available
+                try:
+                    import whisper
+                    import tempfile
+                    
+                    # Cache whisper model to avoid reloading on every request
+                    model_cache_key = "whisper_model_cache"
+                    if model_cache_key not in globals():
+                        model_name = os.getenv("WHISPER_MODEL", "base")
+                        print(f"📥 Loading openai-whisper model '{model_name}' (first time, may take a moment)...")
+                        globals()[model_cache_key] = whisper.load_model(model_name)
+                        print(f"✅ openai-whisper model '{model_name}' loaded successfully")
+                    
+                    whisper_model = globals()[model_cache_key]
+                    model_name = os.getenv("WHISPER_MODEL", "base")
+                    
+                    # Write audio to temp file
+                    suffix = incoming_suffix or ".wav"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                        temp_file.write(audio_bytes)
+                        temp_file_path = temp_file.name
+                    
+                    try:
+                        # Transcribe
+                        result = whisper_model.transcribe(
+                            temp_file_path,
+                            language=lang[:2] if lang and len(lang) >= 2 else None,
+                            task="transcribe"
+                        )
+                        
+                        # Get detected language
+                        detected_lang = result.get("language", lang or "unknown")
+                        detected_prob = None
+                        
+                        # Map to BCP-47
+                        lang_map = {
+                            'en': 'eng_Latn', 'hi': 'hin_Deva', 'bn': 'ben_Beng', 'ta': 'tam_Taml',
+                            'te': 'tel_Telu', 'gu': 'guj_Gujr', 'kn': 'kan_Knda', 'ml': 'mal_Mlym',
+                            'mr': 'mar_Deva', 'pa': 'pan_Guru', 'or': 'ory_Orya', 'as': 'asm_Beng',
+                            'ur': 'urd_Arab', 'ne': 'nep_Deva', 'si': 'sin_Sinh',
+                        }
+                        bcp47_lang = lang_map.get(detected_lang, f"{detected_lang}_Latn")
+                        
+                        return {
+                            "text": result["text"].strip(),
+                            "language": bcp47_lang,
+                            "language_probability": detected_prob,
+                            "model": f"openai-whisper-{model_name}",
+                            "auto_detected": lang is None,
+                        }
+                    finally:
+                        if os.path.exists(temp_file_path):
+                            try:
+                                os.unlink(temp_file_path)
+                            except Exception:
+                                pass
+                except ImportError:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Neither faster-whisper nor openai-whisper is installed. Please install one: pip install faster-whisper ctranslate2 OR pip install openai-whisper"
+                    )
+                except Exception as e:
+                    raise HTTPException(status_code=400, detail=f"Whisper transcription failed: {str(e)}")
 
         # ULCA-style JSON body support
         if body and isinstance(body, dict) and "config" in body and "audio" in body:
@@ -227,46 +442,22 @@ async def stt(
                 if not audio_bytes:
                     raise HTTPException(status_code=400, detail="Audio bytes are empty")
 
-                # Use IndicWav2Vec flow (detection if source_lang missing)
-                detected_lang = source_lang
-                detected_prob = None
-                if not detected_lang:
-                    # Use faster-whisper if available
-                    try:
-                        from faster_whisper import WhisperModel
-                        fw = globals().get("_fw_model")
-                        if fw is None:
-                            model_name = os.getenv("WHISPER_MODEL", "large-v3")
-                            fw = WhisperModel(model_name, device="cuda" if os.getenv("USE_CUDA", "false").lower()=="true" else "cpu")
-                            globals()["_fw_model"] = fw
-                        # temp file for detection
-                        import tempfile
-                        suffix = incoming_suffix or ".wav"
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tf:
-                            tf.write(audio_bytes)
-                            tmp_path = tf.name
-                        try:
-                            segments, info = fw.transcribe(tmp_path, beam_size=1, vad_filter=False)
-                            detected_lang = info.language
-                            detected_prob = float(getattr(info, 'language_probability', 0.0))
-                        finally:
-                            try:
-                                os.unlink(tmp_path)
-                            except Exception:
-                                pass
-                    except Exception:
-                        detected_lang = None
-
-                if not detected_lang:
-                    raise HTTPException(status_code=400, detail="Language detection failed. Provide config.language.sourceLanguage.")
-
-                indic_service = get_indicwav2vec_stt_service()
-                indic_result = await indic_service.transcribe(audio_bytes, language=detected_lang)
+                # Use faster-whisper for transcription
+                from ..services.faster_whisper_stt import get_faster_whisper_stt_service
+                
+                fw_service = get_faster_whisper_stt_service()
+                result = await fw_service.transcribe(
+                    audio_bytes,
+                    language=source_lang,
+                    auto_detect_language=(source_lang is None),
+                    model_size=None,
+                    file_suffix=incoming_suffix,
+                )
 
                 # ULCA-style response
                 return {
                     "output": [{
-                        "source": indic_result.text
+                        "source": result.text
                     }],
                     "status": "SUCCESS"
                 }

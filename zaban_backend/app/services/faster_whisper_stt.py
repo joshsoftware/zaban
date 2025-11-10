@@ -118,16 +118,33 @@ class FasterWhisperSttService:
                 temp_file.write(audio_data)
                 temp_file_path = temp_file.name
             
-            # Transcribe
-            segments, info = self.model.transcribe(
-                temp_file_path,
-                language=language if language else None,
-                task="transcribe",
-                vad_filter=True,
-                vad_parameters=dict(min_silence_duration_ms=500),
-                beam_size=5,
-                temperature=0.0,
-            )
+            # Transcribe with improved language detection
+            # For auto-detection, faster-whisper does detection automatically
+            # We use better parameters to improve detection accuracy
+            if language is None and auto_detect_language:
+                # Auto-detect: faster-whisper will detect language automatically
+                # Use beam_size=5 for better accuracy in both detection and transcription
+                segments, info = self.model.transcribe(
+                    temp_file_path,
+                    language=None,  # None triggers auto-detection
+                    task="transcribe",
+                    vad_filter=True,
+                    vad_parameters=dict(min_silence_duration_ms=500),
+                    beam_size=5,  # Higher beam_size for better accuracy
+                    temperature=0.0,
+                    best_of=5,  # Try multiple candidates for better detection
+                )
+            else:
+                # Use specified language
+                segments, info = self.model.transcribe(
+                    temp_file_path,
+                    language=language if language else None,
+                    task="transcribe",
+                    vad_filter=True,
+                    vad_parameters=dict(min_silence_duration_ms=500),
+                    beam_size=5,
+                    temperature=0.0,
+                )
             
             # Collect segments
             text_segments = []
@@ -145,6 +162,10 @@ class FasterWhisperSttService:
             # Get detected language
             detected_lang = info.language if hasattr(info, 'language') else language
             detected_prob = float(info.language_probability) if hasattr(info, 'language_probability') else None
+            
+            # Warn if confidence is low (might be wrong detection)
+            if detected_prob is not None and detected_prob < 0.6:
+                print(f"⚠️  Low language detection confidence: {detected_lang} ({detected_prob:.2f}). Detection may be inaccurate.")
             
             # Map to BCP-47
             bcp47_lang = self.WHISPER_TO_BCP47.get(detected_lang, f"{detected_lang}_Latn")

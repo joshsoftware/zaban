@@ -1,9 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
-from .routes.v1 import router as v1_router
-from .routes import auth as auth_routes
 import os
+from pathlib import Path
+
+# Load environment variables as early as possible so modules that read env at
+# import time (e.g., OAuth clients) receive the correct values.
+load_dotenv(override=True)
+
+# Use the consolidated API v1 router that includes translation, TTS/STT,
+# transliteration, and API key endpoints
+from .api.v1 import router as v1_router
+from .routes import auth as auth_routes
 
 
 app = FastAPI(title="AI4Bharat FastAPI Backend", version="0.1.0")
@@ -45,6 +54,26 @@ async def startup_event():
 @app.get("/up")
 async def up():
     return {"status": "ok"}
+
+
+@app.get("/translate-ui")
+async def translation_ui():
+    """Serve the translation UI HTML page"""
+    docs_dir = Path(__file__).parent.parent / "docs"
+    html_file = docs_dir / "test_translation.html"
+    if html_file.exists():
+        return FileResponse(html_file, media_type="text/html")
+    return {"error": "Translation UI not found"}
+
+
+@app.get("/stt-ui")
+async def stt_ui():
+    """Serve the STT UI HTML page"""
+    docs_dir = Path(__file__).parent.parent / "docs"
+    html_file = docs_dir / "test_stt_voice.html"
+    if html_file.exists():
+        return FileResponse(html_file, media_type="text/html")
+    return {"error": "STT UI not found"}
 
 
 app.include_router(v1_router, prefix="/api/v1")
