@@ -129,10 +129,17 @@ class LanguageDetector:
     def detect_language(self, text: str) -> LanguageDetectionResult:
         """
         Detect the language of the given text using FastText only.
+        Returns a default result (eng_Latn with 0.0 confidence) for empty text.
         Raises an error if FastText is unavailable.
         """
+        # Handle empty or whitespace-only text with default fallback
         if not text or not text.strip():
-            raise ValueError("Cannot auto-detect language from empty text")
+            return LanguageDetectionResult(
+                detected_lang='eng_Latn',
+                confidence=0.0,
+                method='default',
+                is_auto_detected=False
+            )
 
         # FastText-only detection
         fasttext_result = self._detect_by_fasttext(text)
