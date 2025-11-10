@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #111827;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: #111827;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Override faded text colors to make them more visible */
+.text-gray-600,
+.text-gray-500,
+.text-gray-400 {
+  color: #374151 !important; /* gray-700 - darker than original */
+}
