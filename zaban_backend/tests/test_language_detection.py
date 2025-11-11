@@ -2,7 +2,6 @@
 """
 Test language detection functionality
 """
-import pytest
 from app.services.language_detection import get_language_detector, LanguageDetectionResult
 
 

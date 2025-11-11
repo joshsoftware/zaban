@@ -450,11 +450,11 @@ Notes
 ## Translation and Auto-Detection
 
 The translation endpoint supports:
-- **Source language auto-detection** using FastText only (no script or word fallback—only the official FastText lid.176.bin model is used). If FastText or the model is missing, API requests with auto_detect will return an explicit error.
+- **Source language auto-detection** using FastText only (no script or word fallback — only the official FastText lid.176.bin model is used). If FastText or the model is missing, API requests with auto_detect will return an explicit error.
 - **Translation strictly via AI4Bharat IndicTrans2** (local model), for 22 Indian languages and English.
 - Only requests in the supported language pairs (see below) will succeed. All other cases, including international or unsupported source languages, result in a clear HTTP 400 error response.
 
-Note on language tags: FastText returns simple labels like `en`, `hi`. We normalize these to BCP‑47/FLORES tags (e.g., `eng_Latn`, `hin_Deva`) that IndicTrans2 expects. This mapping is for tag formatting only—detection is entirely done by FastText and does not depend on the mapping for accuracy.
+Note on language tags: FastText returns simple labels like `en`, `hi`. We normalize these to BCP‑47/FLORES tags (e.g., `eng_Latn`, `hin_Deva`) that IndicTrans2 expects. This mapping is for tag formatting only — detection is entirely done by FastText and does not depend on the mapping for accuracy.
 
 ### Supported Language Codes (BCP-47):
 (IndicTrans2 only)

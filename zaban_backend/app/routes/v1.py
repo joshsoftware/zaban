@@ -114,12 +114,14 @@ async def translate(req: TranslateRequest):
     try:
         # Determine source language
         source_lang = req.source_lang
+        auto_detected = False
         
         # Auto-detect source language if not provided or auto_detect is enabled
         if not source_lang or req.auto_detect:
             detector = get_language_detector()
             detection_result = detector.detect_language(req.text)
             source_lang = detection_result.detected_lang
+            auto_detected = True
             
             # If auto-detection confidence is too low, default to English
             if detection_result.confidence < 0.1:
@@ -139,7 +141,8 @@ async def translate(req: TranslateRequest):
             # Use local IndicTrans2 model
             indictrans_service = get_indictrans2_service()
             # Guard: IndicTrans2 supports only Indic languages + English
-            supported_indic = get_language_detector()._get_supported_indic_languages()
+            detector = get_language_detector()
+            supported_indic = detector.get_supported_indic_languages()
             if source_lang not in supported_indic:
                 raise HTTPException(
                     status_code=400,
@@ -155,7 +158,7 @@ async def translate(req: TranslateRequest):
                 "source_lang": source_lang,
                 "target_lang": req.target_lang,
                 "model": "indictrans2-local",
-                "auto_detected": req.auto_detect and not req.source_lang
+                "auto_detected": auto_detected
             }
         # (No else case for international/external)
     except Exception as e:
