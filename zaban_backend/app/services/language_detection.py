@@ -3,6 +3,7 @@ Language detection service using FastText only
 """
 
 import os
+from pathlib import Path
 from typing import Optional, Dict, List
 from dataclasses import dataclass
 
@@ -84,20 +85,83 @@ class LanguageDetector:
     
     def __init__(self):
         self.fasttext_model = None
+        self.model_cache_dir = self._get_model_cache_dir()
         if FASTTEXT_AVAILABLE:
             self._load_fasttext_model()
     
-    def _load_fasttext_model(self):
-        """Load FastText language identification model"""
+    def _get_model_cache_dir(self) -> Path:
+        """
+        Get or create the model cache directory.
+        
+        Priority order:
+        1. FASTTEXT_CACHE_DIR environment variable
+        2. ~/.cache/zaban/models (Linux/Mac)
+        3. %LOCALAPPDATA%/zaban/models (Windows)
+        4. ./models (fallback for development)
+        
+        Returns:
+            Path: Path to the cache directory
+        """
+        # Check for custom cache directory from environment
+        cache_dir_env = os.getenv("FASTTEXT_CACHE_DIR")
+        if cache_dir_env:
+            cache_dir = Path(cache_dir_env)
+        else:
+            # Use platform-appropriate cache directory
+            home = Path.home()
+            if os.name == 'nt':  # Windows
+                cache_dir = Path(os.getenv('LOCALAPPDATA', home)) / 'zaban' / 'models'
+            else:  # Linux/Mac
+                cache_dir = home / '.cache' / 'zaban' / 'models'
+        
+        # Create directory if it doesn't exist
         try:
-            # Try to load from local cache first
-            model_path = os.getenv("FASTTEXT_MODEL_PATH", "lid.176.bin")
-            if os.path.exists(model_path):
-                self.fasttext_model = fasttext.load_model(model_path)
-                print(f"✅ FastText model loaded from {model_path}")
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            # Verify directory is writable
+            test_file = cache_dir / '.write_test'
+            test_file.touch()
+            test_file.unlink()
+            print(f"📁 Model cache directory: {cache_dir}")
+            return cache_dir
+        except (OSError, PermissionError) as e:
+            print(f"⚠️  Cannot write to cache directory {cache_dir}: {e}")
+            # Fallback to local models directory
+            fallback_dir = Path('./models')
+            fallback_dir.mkdir(exist_ok=True)
+            print(f"📁 Using fallback cache directory: {fallback_dir}")
+            return fallback_dir
+    
+    def _load_fasttext_model(self):
+        """
+        Load FastText language identification model.
+        
+        Attempts to load from:
+        1. Custom path specified in FASTTEXT_MODEL_PATH environment variable
+        2. Cache directory
+        3. Downloads if not found
+        """
+        try:
+            # Check for custom model path first
+            custom_model_path = os.getenv("FASTTEXT_MODEL_PATH")
+            if custom_model_path:
+                model_path = Path(custom_model_path)
+                if model_path.exists():
+                    self.fasttext_model = fasttext.load_model(str(model_path))
+                    print(f"✅ FastText model loaded from custom path: {model_path}")
+                    return
+                else:
+                    print(f"⚠️  Custom model path not found: {model_path}")
+            
+            # Check cache directory
+            model_filename = "lid.176.bin"
+            cached_model_path = self.model_cache_dir / model_filename
+            
+            if cached_model_path.exists():
+                self.fasttext_model = fasttext.load_model(str(cached_model_path))
+                print(f"✅ FastText model loaded from cache: {cached_model_path}")
             else:
                 # Download model if not available
-                print("📥 FastText model not found, downloading...")
+                print("📥 FastText model not found in cache, downloading...")
                 self._download_fasttext_model()
         except Exception as e:
             print(f"⚠️  FastText model loading failed: {e}")
@@ -105,34 +169,122 @@ class LanguageDetector:
             self.fasttext_model = None
     
     def _download_fasttext_model(self):
-        """Download FastText language identification model"""
+        """
+        Download FastText language identification model to cache directory.
+        
+        Downloads the model with proper error handling and file validation.
+        The model is saved to the cache directory to persist across restarts.
+        """
         try:
             model_url = "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin"
-            model_path = "lid.176.bin"
+            model_filename = "lid.176.bin"
+            model_path = self.model_cache_dir / model_filename
+            temp_path = self.model_cache_dir / f"{model_filename}.tmp"
             
             print(f"📥 Downloading FastText model from {model_url}")
-            response = requests.get(model_url, stream=True)
+            print(f"📁 Saving to: {model_path}")
+            
+            # Download to temporary file first
+            response = requests.get(model_url, stream=True, timeout=60)
             response.raise_for_status()
             
-            with open(model_path, 'wb') as f:
+            # Get total file size if available
+            total_size = int(response.headers.get('content-length', 0))
+            if total_size > 0:
+                print(f"📊 Download size: {total_size / (1024*1024):.2f} MB")
+            
+            # Write to temporary file
+            with open(temp_path, 'wb') as f:
+                downloaded = 0
                 for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0 and downloaded % (1024*1024) == 0:
+                            progress = (downloaded / total_size) * 100
+                            print(f"⏳ Progress: {progress:.1f}%")
             
-            self.fasttext_model = fasttext.load_model(model_path)
-            print(f"✅ FastText model downloaded and loaded from {model_path}")
+            # Verify the downloaded file exists and has content
+            if not temp_path.exists() or temp_path.stat().st_size == 0:
+                raise RuntimeError("Downloaded file is empty or missing")
             
+            # Move temporary file to final location
+            temp_path.rename(model_path)
+            
+            # Load the model
+            self.fasttext_model = fasttext.load_model(str(model_path))
+            print(f"✅ FastText model downloaded and loaded successfully")
+            print(f"📁 Model cached at: {model_path}")
+            
+        except requests.exceptions.RequestException as e:
+            print(f"❌ FastText model download failed (network error): {e}")
+            self.fasttext_model = None
+            # Clean up temporary file if it exists
+            if 'temp_path' in locals() and temp_path.exists():
+                temp_path.unlink()
         except Exception as e:
             print(f"❌ FastText model download failed: {e}")
             print("❌ FastText model unavailable; detection disabled")
             self.fasttext_model = None
+            # Clean up temporary file if it exists
+            if 'temp_path' in locals() and temp_path.exists():
+                temp_path.unlink()
+    
+    def get_model_cache_info(self) -> Dict[str, any]:
+        """
+        Get information about the model cache.
+        
+        Returns:
+            Dict containing cache directory, model path, size, and status
+        """
+        model_filename = "lid.176.bin"
+        model_path = self.model_cache_dir / model_filename
+        
+        info = {
+            "cache_dir": str(self.model_cache_dir),
+            "model_path": str(model_path),
+            "model_exists": model_path.exists(),
+            "model_loaded": self.fasttext_model is not None
+        }
+        
+        if model_path.exists():
+            size_bytes = model_path.stat().st_size
+            info["model_size_mb"] = round(size_bytes / (1024*1024), 2)
+        
+        return info
+    
+    def clear_model_cache(self):
+        """
+        Clear the model cache by removing downloaded model files.
+        
+        Note: This will require re-downloading the model on next use.
+        """
+        model_filename = "lid.176.bin"
+        model_path = self.model_cache_dir / model_filename
+        
+        try:
+            if model_path.exists():
+                model_path.unlink()
+                print(f"🗑️  Removed cached model: {model_path}")
+            else:
+                print(f"ℹ️  No cached model found at: {model_path}")
+        except Exception as e:
+            print(f"⚠️  Failed to clear cache: {e}")
     
     def detect_language(self, text: str) -> LanguageDetectionResult:
         """
         Detect the language of the given text using FastText only.
+        Returns a default result (eng_Latn with 0.0 confidence) for empty text.
         Raises an error if FastText is unavailable.
         """
+        # Handle empty or whitespace-only text with default fallback
         if not text or not text.strip():
-            raise ValueError("Cannot auto-detect language from empty text")
+            return LanguageDetectionResult(
+                detected_lang='eng_Latn',
+                confidence=0.0,
+                method='default',
+                is_auto_detected=False
+            )
 
         # FastText-only detection
         fasttext_result = self._detect_by_fasttext(text)
@@ -192,8 +344,17 @@ class LanguageDetector:
         """Get the current detection method being used"""
         return "fasttext" if (self.fasttext_model and FASTTEXT_AVAILABLE) else "unavailable"
     
-    def _get_supported_indic_languages(self) -> List[str]:
-        """Get list of languages supported by IndicTrans2"""
+    def get_supported_indic_languages(self) -> List[str]:
+        """
+        Get list of languages supported by IndicTrans2.
+        
+        This is a public method that returns the complete list of languages
+        supported by the IndicTrans2 translation model, including all major
+        Indian languages and English with their respective scripts.
+        
+        Returns:
+            List[str]: List of BCP-47 language codes with scripts
+        """
         return [
             'eng_Latn',    # English
             'hin_Deva',    # Hindi

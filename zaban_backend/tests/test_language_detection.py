@@ -2,7 +2,6 @@
 """
 Test language detection functionality
 """
-import pytest
 from app.services.language_detection import get_language_detector, LanguageDetectionResult
 
 
@@ -107,38 +106,38 @@ def test_language_detection_multiple_languages():
 
 
 def test_language_detection_script_based():
-    """Test script-based detection"""
+    """Test FastText-based detection for script-based languages"""
     detector = get_language_detector()
     
     # Devanagari script (Hindi/Marathi/Nepali/Sanskrit)
     result = detector.detect_language("यह हिंदी है")
     assert result.detected_lang in ["hin_Deva", "mar_Deva", "npi_Deva", "san_Deva"]
-    assert result.method == "script"
+    assert result.method == "fasttext"
     
     # Bengali script
     result = detector.detect_language("এটি বাংলা")
     assert result.detected_lang in ["ben_Beng", "asm_Beng", "mni_Beng"]
-    assert result.method == "script"
+    assert result.method == "fasttext"
     
     # Tamil script
     result = detector.detect_language("இது தமிழ்")
     assert result.detected_lang == "tam_Taml"
-    assert result.method == "script"
+    assert result.method == "fasttext"
 
 
 def test_language_detection_word_based():
-    """Test word-based detection"""
+    """Test FastText-based detection for word-based text"""
     detector = get_language_detector()
     
     # Hindi with common words
     result = detector.detect_language("मैं आपसे मिलकर खुश हूं")
     assert result.detected_lang == "hin_Deva"
-    assert result.method == "words"
+    assert result.method == "fasttext"
     
     # English with common words
     result = detector.detect_language("I am happy to meet you")
     assert result.detected_lang == "eng_Latn"
-    assert result.method == "words"
+    assert result.method == "fasttext"
 
 
 def test_supported_languages():
