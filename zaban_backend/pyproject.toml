@@ -24,6 +24,9 @@ dependencies = [
   "sentencepiece>=0.2.0",
   "sacremoses>=0.1.1",
   "IndicTransToolkit>=1.0",
+  "fasttext>=0.9.2",
+  "requests>=2.31",
+  "numpy<2.0",  # Pin NumPy <2.0 due to FastText binary incompatibility with NumPy 2.x ABI changes
 ]
 
 [tool.uv]

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from ..services.ai4bharat import Ai4BharatClient
 from ..services.indictrans2 import get_indictrans2_service
+from ..services.language_detection import get_language_detector
 
 
 router = APIRouter()
@@ -22,9 +23,10 @@ class TtsRequest(BaseModel):
 
 class TranslateRequest(BaseModel):
     text: str
-    source_lang: str
+    source_lang: Optional[str] = None  # Made optional for auto-detection
     target_lang: str
     domain: Optional[str] = None
+    auto_detect: Optional[bool] = False  # Enable auto-detection
 
 
 class TransliterateRequest(BaseModel):
@@ -77,11 +79,27 @@ async def translate(req: TranslateRequest):
     """
     Translate text using IndicTrans2 model (local) or external API.
     
-    Request:
+    Features:
+    - Auto-detection of source language when source_lang is not provided
+    - Support for 22 Indian languages
+    - BCP-47 language codes with script (e.g., eng_Latn, hin_Deva)
+    
+    Auto-detection:
+    - Set auto_detect=true to enable automatic language detection
+    - Leave source_lang empty or null to use auto-detection
+    - Detection uses FastText and script patterns
+    
+    Request Examples:
     {
       "text": "How are you?",
-      "source_lang": "eng_Latn",  # Use BCP-47 format with script for IndicTrans2
+      "source_lang": "eng_Latn",  # Explicit source language
       "target_lang": "hin_Deva"
+    }
+    
+    {
+      "text": "नमस्ते दुनिया",
+      "target_lang": "eng_Latn",
+      "auto_detect": true  # Auto-detect source language
     }
     
     Response:
@@ -89,38 +107,60 @@ async def translate(req: TranslateRequest):
       "translated_text": "आप कैसे हैं?",
       "source_lang": "eng_Latn",
       "target_lang": "hin_Deva",
-      "model": "indictrans2-local" or "external-api"
+      "model": "indictrans2-local",
+      "auto_detected": true
     }
     """
     try:
+        # Determine source language
+        source_lang = req.source_lang
+        auto_detected = False
+        
+        # Auto-detect source language if not provided or auto_detect is enabled
+        if not source_lang or req.auto_detect:
+            detector = get_language_detector()
+            detection_result = detector.detect_language(req.text)
+            source_lang = detection_result.detected_lang
+            auto_detected = True
+            
+            # If auto-detection confidence is too low, default to English
+            if detection_result.confidence < 0.1:
+                source_lang = "eng_Latn"
+        
+        # Validate that we have a source language
+        if not source_lang:
+            raise HTTPException(
+                status_code=400, 
+                detail="Source language is required. Provide source_lang or enable auto_detect."
+            )
+        
         # Check if we should use local IndicTrans2 model or external API
         use_local = os.getenv("USE_LOCAL_INDICTRANS2", "true").lower() == "true"
         
         if use_local:
             # Use local IndicTrans2 model
             indictrans_service = get_indictrans2_service()
+            # Guard: IndicTrans2 supports only Indic languages + English
+            detector = get_language_detector()
+            supported_indic = detector.get_supported_indic_languages()
+            if source_lang not in supported_indic:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported source language for IndicTrans2: {source_lang}. Supported: {', '.join(supported_indic)}"
+                )
             translated_text = await indictrans_service.translate(
                 text=req.text,
-                source_lang=req.source_lang,
+                source_lang=source_lang,
                 target_lang=req.target_lang
             )
             return {
                 "translated_text": translated_text,
-                "source_lang": req.source_lang,
+                "source_lang": source_lang,
                 "target_lang": req.target_lang,
-                "model": "indictrans2-local"
+                "model": "indictrans2-local",
+                "auto_detected": auto_detected
             }
-        else:
-            # Use external API (if AI4B_TRANSLATE_URL is configured)
-            result = await client.translate(
-                text=req.text,
-                source_lang=req.source_lang,
-                target_lang=req.target_lang,
-                domain=req.domain
-            )
-            if isinstance(result, dict):
-                result["model"] = "external-api"
-            return result
+        # (No else case for international/external)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

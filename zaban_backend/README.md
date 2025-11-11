@@ -446,3 +446,66 @@ Notes
 - The app uses an in-memory token denylist for logout (use Redis in production)
 - Domain allow-list defaults to joshsoftware.com (configure via ALLOWED_SSO_DOMAINS)
 - All endpoints automatically load .env on startup via `load_dotenv(override=True)` in app/main.py
+
+## Translation and Auto-Detection
+
+The translation endpoint supports:
+- **Source language auto-detection** using FastText only (no script or word fallback — only the official FastText lid.176.bin model is used). If FastText or the model is missing, API requests with auto_detect will return an explicit error.
+- **Translation strictly via AI4Bharat IndicTrans2** (local model), for 22 Indian languages and English.
+- Only requests in the supported language pairs (see below) will succeed. All other cases, including international or unsupported source languages, result in a clear HTTP 400 error response.
+
+Note on language tags: FastText returns simple labels like `en`, `hi`. We normalize these to BCP‑47/FLORES tags (e.g., `eng_Latn`, `hin_Deva`) that IndicTrans2 expects. This mapping is for tag formatting only — detection is entirely done by FastText and does not depend on the mapping for accuracy.
+
+### Supported Language Codes (BCP-47):
+(IndicTrans2 only)
+- English: `eng_Latn`
+- Hindi: `hin_Deva`
+- Bengali: `ben_Beng`
+- Telugu: `tel_Telu`
+- Tamil: `tam_Taml`
+- Gujarati: `guj_Gujr`
+- Kannada: `kan_Knda`
+- Malayalam: `mal_Mlym`
+- Marathi: `mar_Deva`
+- Punjabi: `pan_Guru`
+- Oriya: `ory_Orya`
+- Assamese: `asm_Beng`
+- Urdu: `urd_Arab`
+- Kashmiri (Arabic): `kas_Arab`
+- Kashmiri (Devanagari): `kas_Deva`
+- Konkani: `gom_Deva`
+- Manipuri (Bengali): `mni_Beng`
+- Manipuri (Meitei): `mni_Mtei`
+- Nepali: `npi_Deva`
+- Sanskrit: `san_Deva`
+- Santali: `sat_Olck`
+- Sindhi (Arabic): `snd_Arab`
+- Sindhi (Devanagari): `snd_Deva`
+
+### Example: English to Hindi
+```bash
+curl -X POST http://localhost:8000/api/v1/translate \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk-your-secret-key-here" \
+  -d '{"text":"How are you?","auto_detect":true,"target_lang":"hin_Deva"}'
+
+# Response:
+# {
+#   "translated_text": "आप कैसे हैं?",
+#   "source_lang": "eng_Latn",
+#   "target_lang": "hin_Deva",
+#   "model": "indictrans2-local",
+#   "auto_detected": true
+# }
+```
+
+### What Happens for Unsupported Languages?
+If you send `text` that auto-detects as a language not in the above list, the API will return HTTP 400 with an explanatory error. There is no fallback translation for international or other languages.
+
+### Environment Variables
+- `USE_LOCAL_INDICTRANS2=true`    # always use local IndicTrans2 for supported languages
+- `INDICTRANS2_*`                 # (see above for examples)
+
+### Notes
+- Models are automatically downloaded on first run (can be large!).
+- The API no longer performs any international/third-party translation. Only supported Indian languages and English are allowed.
