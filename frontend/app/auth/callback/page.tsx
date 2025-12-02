@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { exchangeGoogleCode } from '../../lib/auth';
 import { motion } from 'framer-motion';
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export default function AuthCallbackPage() {
               Please wait while we complete your sign-in
             </p>
             <p className="text-sm text-gray-500 mt-4">
-              You'll be redirected to the dashboard shortly
+              You&apos;ll be redirected to the dashboard shortly
             </p>
           </>
         ) : error ? (
@@ -97,6 +97,21 @@ export default function AuthCallbackPage() {
         ) : null}
       </motion.div>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600">
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    }>
+      <AuthCallbackContent />
+    </Suspense>
   );
 }
 

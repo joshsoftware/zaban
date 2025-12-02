@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { fetchAPIKeys, deleteAPIKey, type APIKey } from '../lib/api-service';
 import { Trash2 } from 'lucide-react';
 
+// Re-export APIKey type for use in other components
+export type { APIKey };
+
 type SortOrder = 'asc' | 'desc';
 
 export default function APIKeysTable() {

@@ -50,7 +50,6 @@ export function withAuth<P extends object>(
 
 export function useAuth() {
   const [user, setUser] = useState<{ email: string; name?: string } | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -71,8 +70,8 @@ export function useAuth() {
     checkAuth();
   }, []);
 
-  const logout = () => {
-    const { logout: logoutFn } = require('./auth');
+  const logout = async () => {
+    const { logout: logoutFn } = await import('./auth');
     logoutFn();
   };
 

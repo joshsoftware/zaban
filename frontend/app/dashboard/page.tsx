@@ -5,7 +5,7 @@ import { withAuth, useAuth } from '../lib/withAuth';
 import { useState } from 'react';
 import { LayoutDashboard, KeyRound, LogOut, Mic } from 'lucide-react';
 import GenerateKeyModal from '../components/GenerateKeyModal';
-import APIKeysTable, { APIKey } from '../components/APIKeysTable';
+import APIKeysTable from '../components/APIKeysTable';
 import SpeechToText from '../components/SpeechToText';
 
 
@@ -15,18 +15,10 @@ function DashboardPage() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
 
-  const handleKeyGenerated = (name: string, key: string) => {
-    const maskedKey = `${key.substring(0, 12)}${'•'.repeat(20)}`;
-    const newApiKey: APIKey = {
-      id: Date.now().toString(),
-      name,
-      key,
-      maskedKey,
-      createdAt: new Date(),
-    };
-    setApiKeys((prev) => [...prev, newApiKey]);
+  const handleKeyGenerated = () => {
+    // API key generation handled by GenerateKeyModal component
+    // The APIKeysTable will refresh automatically after generation
   };
 
   const handleTranscriptionComplete = (text: string) => {
@@ -106,7 +98,7 @@ function DashboardPage() {
           {activeTab === 'speech-to-text' && (
             <SpeechToTextTab onTranscriptionComplete={handleTranscriptionComplete} />
           )}
-          {activeTab === 'api-keys' && <APIKeysTab apiKeys={apiKeys} />}
+          {activeTab === 'api-keys' && <APIKeysTab />}
         </main>
       </div>
 
@@ -123,7 +115,7 @@ export default withAuth(DashboardPage);
 
 /* ========== SUB COMPONENTS ========== */
 
-function OverviewTab({ user }: { user: any }) {
+function OverviewTab({ user }: { user: { email: string; name?: string } | null }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -180,7 +172,7 @@ function SpeechToTextTab({
   );
 }
 
-function APIKeysTab({ apiKeys }: { apiKeys: APIKey[] }) {
+function APIKeysTab() {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -190,7 +182,7 @@ function APIKeysTab({ apiKeys }: { apiKeys: APIKey[] }) {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">API Keys</h2>
       </div>
-      <APIKeysTable apiKeys={apiKeys} />
+      <APIKeysTable />
     </motion.div>
   );
 }

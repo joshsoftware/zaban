@@ -1,0 +1,48 @@
+# Production configuration with AWS RDS
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  # Disable local PostgreSQL (using RDS instead)
+  postgres:
+    image: alpine:latest
+    command: echo "Using external RDS database"
+    restart: "no"
+    deploy:
+      replicas: 0
+
+  # Backend - Production Configuration
+  backend:
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NODE_ENV: production
+      PYTHONUNBUFFERED: 1
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    depends_on: []
+    volumes:
+      - /data/ml_models:/app/.cache/huggingface
+
+  # Frontend - Production Configuration  
+  frontend:
+    environment:
+      NEXT_PUBLIC_EXTERNAL_API_URL: ${NEXT_PUBLIC_EXTERNAL_API_URL}
+      NODE_ENV: production
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+volumes:
+  ml_models_cache:
