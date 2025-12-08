@@ -26,7 +26,7 @@ services:
       dockerfile: Dockerfile
     container_name: zaban-backend
     env_file:
-      - .env
+      - ./zaban_backend/.env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/zaban_backend_development}
     ports:
@@ -47,7 +47,7 @@ services:
       dockerfile: Dockerfile
     container_name: zaban-frontend
     env_file:
-      - .env
+      - ./frontend/.env
     environment:
       NEXT_PUBLIC_EXTERNAL_API_URL: ${NEXT_PUBLIC_EXTERNAL_API_URL:-http://localhost:8000}
     ports:
