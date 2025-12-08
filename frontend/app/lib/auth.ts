@@ -62,7 +62,7 @@ export const initiateGoogleLogin = (): void => {
     return;
   }
 
-  const googleAuthUrl = "https://accounts.google.com/o/oauth2/v2/auth";
+  const googleAuthUrl = config.google.authUrl;
   const params = new URLSearchParams({
     client_id: config.google.clientId,
     redirect_uri: config.google.redirectUri,
