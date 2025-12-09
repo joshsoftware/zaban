@@ -55,20 +55,33 @@ class IndicTrans2Service:
                 "or install from source: https://github.com/AI4Bharat/IndicTrans2"
             ) from e
         
+        # Get Hugging Face token if available (for gated models)
+        hf_token = os.getenv("HUGGING_FACE_TOKEN") 
+        
         # Load En->Indic model (200M distilled version for faster inference)
-        en_indic_name = os.getenv("INDICTRANS2_EN_INDIC_MODEL", "ai4bharat/indictrans2-en-indic-dist-200M")
-        self.en_indic_tokenizer = AutoTokenizer.from_pretrained(en_indic_name, trust_remote_code=True)
+        en_indic_name = os.getenv("INDICTRANS2_EN_INDIC_MODEL")
+        self.en_indic_tokenizer = AutoTokenizer.from_pretrained(
+            en_indic_name, 
+            trust_remote_code=True,
+            token=hf_token
+        )
         self.en_indic_model = AutoModelForSeq2SeqLM.from_pretrained(
             en_indic_name, 
-            trust_remote_code=True
+            trust_remote_code=True,
+            token=hf_token
         ).to(self.device)
         
         # Load Indic->En model
-        indic_en_name = os.getenv("INDICTRANS2_INDIC_EN_MODEL", "ai4bharat/indictrans2-indic-en-dist-200M")
-        self.indic_en_tokenizer = AutoTokenizer.from_pretrained(indic_en_name, trust_remote_code=True)
+        indic_en_name = os.getenv("INDICTRANS2_INDIC_EN_MODEL")
+        self.indic_en_tokenizer = AutoTokenizer.from_pretrained(
+            indic_en_name, 
+            trust_remote_code=True,
+            token=hf_token
+        )
         self.indic_en_model = AutoModelForSeq2SeqLM.from_pretrained(
             indic_en_name,
-            trust_remote_code=True
+            trust_remote_code=True,
+            token=hf_token
         ).to(self.device)
         
         # Initialize processor
