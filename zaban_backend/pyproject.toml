@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ai4bharat-fastapi"
 version = "0.1.0"
 description = "FastAPI backend wrapping AI4Bharat endpoints: TTS, STT, translate, transliterate"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.112",
   "uvicorn[standard]>=0.30",
@@ -15,7 +15,11 @@ dependencies = [
   "pydantic>=2.8",
   "pydantic-settings>=2.4",
   "PyJWT>=2.9",
+  "email-validator>=2.3",
+  "dnspython>=2.0",
   "python-dotenv>=1.0",
+  "passlib[bcrypt,argon2]>=1.7",
+  "argon2-cffi>=21.3.0",
   "SQLAlchemy>=2.0",
   "alembic>=1.13",
   "psycopg[binary]>=3.2",
@@ -24,14 +28,14 @@ dependencies = [
   "sentencepiece>=0.2.0",
   "sacremoses>=0.1.1",
   "IndicTransToolkit>=1.0",
-  "fasttext>=0.9.2",
+  "fasttext-wheel>=0.9.2",
   "requests>=2.31",
-  "numpy<2.0",  # Pin NumPy for FastText compatibility
-  "openai-whisper>=20231117",  # Whisper STT support
-  "faster-whisper>=0.10.0",  # Faster Whisper STT support (CTranslate2 backend)
-  "ctranslate2>=4.0.0",  # Required by faster-whisper
-  "soundfile>=0.12.0",  # Required by faster-whisper for audio processing
-  "parler-tts>=0.1.0",  # IndicParler TTS support
+  "numpy<2.0",
+  "openai-whisper>=20231117",
+  "faster-whisper>=0.10.0",
+  "ctranslate2>=4.0.0",
+  "soundfile>=0.12.0",
+  "parler-tts>=0.1.0",
 ]
 
 [tool.uv]

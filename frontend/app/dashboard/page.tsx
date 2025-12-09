@@ -1,40 +1,44 @@
-'use client';
+"use client";
 
-import { motion } from 'framer-motion';
-import { withAuth, useAuth } from '../lib/withAuth';
-import { useState } from 'react';
-import { LayoutDashboard, KeyRound, LogOut, Mic, Languages, Settings, Volume2 } from 'lucide-react';
-import GenerateKeyModal from '../components/GenerateKeyModal';
-import APIKeysTable, { APIKey } from '../components/APIKeysTable';
-import SpeechToText from '../components/SpeechToText';
-import Translation from '../components/Translation';
-import TextToSpeech from '../components/TextToSpeech';
-import ApiKeySettings from '../components/ApiKeySettings';
+import { motion } from "framer-motion";
+import { withAuth, useAuth } from "../lib/withAuth";
+import { useState } from "react";
+import {
+  LayoutDashboard,
+  KeyRound,
+  LogOut,
+  Mic,
+  Languages,
+  Settings,
+  Volume2,
+} from "lucide-react";
+import GenerateKeyModal from "../components/GenerateKeyModal";
+import APIKeysTable from "../components/APIKeysTable";
+import SpeechToText from "../components/SpeechToText";
+import Translation from "../components/Translation";
+import TextToSpeech from "../components/TextToSpeech";
+import ApiKeySettings from "../components/ApiKeySettings";
 
-
-type TabType = 'overview' | 'api-keys' | 'speech-to-text' | 'translation' | 'text-to-speech';
+type TabType =
+  | "overview"
+  | "api-keys"
+  | "speech-to-text"
+  | "translation"
+  | "text-to-speech";
 
 function DashboardPage() {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
 
-  const handleKeyGenerated = (name: string, key: string) => {
-    const maskedKey = `${key.substring(0, 12)}${'•'.repeat(20)}`;
-    const newApiKey: APIKey = {
-      id: Date.now().toString(),
-      name,
-      key,
-      maskedKey,
-      createdAt: new Date(),
-    };
-    setApiKeys((prev) => [...prev, newApiKey]);
+  const handleKeyGenerated = () => {
+    // API key generation handled by GenerateKeyModal component
+    // The APIKeysTable will refresh automatically after generation
   };
 
   const handleTranscriptionComplete = (text: string) => {
-    console.log('Transcription:', text);
+    console.log("Transcription:", text);
     // Handle transcription result (e.g., save to database, display notification)
   };
 
@@ -53,9 +57,9 @@ function DashboardPage() {
 
           <nav className="p-4 space-y-2">
             <button
-              onClick={() => setActiveTab('overview')}
+              onClick={() => setActiveTab("overview")}
               className={`flex items-center w-full gap-3 px-4 py-2 text-gray-900 rounded-md hover:bg-orange-100 transition ${
-                activeTab === 'overview' ? 'bg-orange-100 text-orange-600' : ''
+                activeTab === "overview" ? "bg-orange-100 text-orange-600" : ""
               }`}
             >
               <LayoutDashboard className="h-5 w-5 text-orange-500" />
@@ -63,9 +67,11 @@ function DashboardPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('speech-to-text')}
+              onClick={() => setActiveTab("speech-to-text")}
               className={`flex items-center w-full gap-3 px-4 py-2 text-gray-900 rounded-md hover:bg-orange-100 transition ${
-                activeTab === 'speech-to-text' ? 'bg-orange-100 text-orange-600' : ''
+                activeTab === "speech-to-text"
+                  ? "bg-orange-100 text-orange-600"
+                  : ""
               }`}
             >
               <Mic className="h-5 w-5 text-orange-500" />
@@ -73,9 +79,11 @@ function DashboardPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('translation')}
+              onClick={() => setActiveTab("translation")}
               className={`flex items-center w-full gap-3 px-4 py-2 text-gray-900 rounded-md hover:bg-orange-100 transition ${
-                activeTab === 'translation' ? 'bg-orange-100 text-orange-600' : ''
+                activeTab === "translation"
+                  ? "bg-orange-100 text-orange-600"
+                  : ""
               }`}
             >
               <Languages className="h-5 w-5 text-orange-500" />
@@ -83,9 +91,11 @@ function DashboardPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('text-to-speech')}
+              onClick={() => setActiveTab("text-to-speech")}
               className={`flex items-center w-full gap-3 px-4 py-2 text-gray-900 rounded-md hover:bg-orange-100 transition ${
-                activeTab === 'text-to-speech' ? 'bg-orange-100 text-orange-600' : ''
+                activeTab === "text-to-speech"
+                  ? "bg-orange-100 text-orange-600"
+                  : ""
               }`}
             >
               <Volume2 className="h-5 w-5 text-orange-500" />
@@ -93,9 +103,9 @@ function DashboardPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('api-keys')}
+              onClick={() => setActiveTab("api-keys")}
               className={`flex items-center w-full gap-3 px-4 py-2 text-gray-900 rounded-md hover:bg-orange-100 transition ${
-                activeTab === 'api-keys' ? 'bg-orange-100 text-orange-600' : ''
+                activeTab === "api-keys" ? "bg-orange-100 text-orange-600" : ""
               }`}
             >
               <KeyRound className="h-5 w-5 text-orange-500" />
@@ -133,13 +143,15 @@ function DashboardPage() {
       {/* Main Content */}
       <div className="flex-1">
         <main className="px-6 py-8">
-          {activeTab === 'overview' && <OverviewTab user={user} />}
-          {activeTab === 'speech-to-text' && (
-            <SpeechToTextTab onTranscriptionComplete={handleTranscriptionComplete} />
+          {activeTab === "overview" && <OverviewTab user={user} />}
+          {activeTab === "speech-to-text" && (
+            <SpeechToTextTab
+              onTranscriptionComplete={handleTranscriptionComplete}
+            />
           )}
-          {activeTab === 'translation' && <TranslationTab />}
-          {activeTab === 'text-to-speech' && <TextToSpeechTab />}
-          {activeTab === 'api-keys' && <APIKeysTab apiKeys={apiKeys} />}
+          {activeTab === "translation" && <TranslationTab />}
+          {activeTab === "text-to-speech" && <TextToSpeechTab />}
+          {activeTab === "api-keys" && <APIKeysTab />}
         </main>
       </div>
 
@@ -160,7 +172,11 @@ export default withAuth(DashboardPage);
 
 /* ========== SUB COMPONENTS ========== */
 
-function OverviewTab({ user }: { user: any }) {
+function OverviewTab({
+  user,
+}: {
+  user: { email: string; name?: string } | null;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -172,8 +188,8 @@ function OverviewTab({ user }: { user: any }) {
           Welcome to Your Dashboard
         </h2>
         <p className="text-gray-800">
-          You have successfully logged in using Google SSO. This is a protected page that
-          requires authentication.
+          You have successfully logged in using Google SSO. This is a protected
+          page that requires authentication.
         </p>
       </div>
 
@@ -201,10 +217,10 @@ function OverviewTab({ user }: { user: any }) {
   );
 }
 
-function SpeechToTextTab({ 
-  onTranscriptionComplete 
-}: { 
-  onTranscriptionComplete: (text: string) => void 
+function SpeechToTextTab({
+  onTranscriptionComplete,
+}: {
+  onTranscriptionComplete: (text: string) => void;
 }) {
   return (
     <motion.div
@@ -241,7 +257,7 @@ function TextToSpeechTab() {
   );
 }
 
-function APIKeysTab({ apiKeys }: { apiKeys: APIKey[] }) {
+function APIKeysTab() {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -251,7 +267,7 @@ function APIKeysTab({ apiKeys }: { apiKeys: APIKey[] }) {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">API Keys</h2>
       </div>
-      <APIKeysTable apiKeys={apiKeys} />
+      <APIKeysTable />
     </motion.div>
   );
 }

@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { exchangeGoogleCode } from '../../lib/auth';
-import { motion } from 'framer-motion';
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { exchangeGoogleCode } from "../../lib/auth";
+import { motion } from "framer-motion";
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -13,31 +13,31 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const handleCallback = async () => {
-      const code = searchParams.get('code');
-      const errorParam = searchParams.get('error');
+      const code = searchParams.get("code");
+      const errorParam = searchParams.get("error");
 
       if (errorParam) {
-        setError('Authentication failed. Please try again.');
+        setError("Authentication failed. Please try again.");
         setIsProcessing(false);
-        setTimeout(() => router.push('/login'), 3000);
+        setTimeout(() => router.push("/login"), 3000);
         return;
       }
 
       if (!code) {
-        setError('No authorization code received.');
+        setError("No authorization code received.");
         setIsProcessing(false);
-        setTimeout(() => router.push('/login'), 3000);
+        setTimeout(() => router.push("/login"), 3000);
         return;
       }
 
       try {
         await exchangeGoogleCode(code);
         // Successfully authenticated, redirect to dashboard
-        router.push('/dashboard');
+        router.push("/dashboard");
       } catch {
-        setError('Failed to complete authentication. Please try again.');
+        setError("Failed to complete authentication. Please try again.");
         setIsProcessing(false);
-        setTimeout(() => router.push('/login'), 3000);
+        setTimeout(() => router.push("/login"), 3000);
       }
     };
 
@@ -57,7 +57,7 @@ export default function AuthCallbackPage() {
             <motion.div
               className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4"
               animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             />
             <h2 className="text-2xl font-bold text-gray-800 mb-2">
               Authenticating...
@@ -66,7 +66,7 @@ export default function AuthCallbackPage() {
               Please wait while we complete your sign-in
             </p>
             <p className="text-sm text-gray-500 mt-4">
-              You'll be redirected to the dashboard shortly
+              You&apos;ll be redirected to the dashboard shortly
             </p>
           </>
         ) : error ? (
@@ -100,3 +100,19 @@ export default function AuthCallbackPage() {
   );
 }
 
+export default function AuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600">
+          <div className="text-white text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <AuthCallbackContent />
+    </Suspense>
+  );
+}

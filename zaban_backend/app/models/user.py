@@ -18,5 +18,7 @@ class User(Base):
     is_verified = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    # Hashed password (nullable for users created via SSO)
+    hashed_password = Column(String, nullable=True)
 
 

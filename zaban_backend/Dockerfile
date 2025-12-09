@@ -1,46 +1,47 @@
-# Dockerfile for Zaban Backend
+# Use Python 3.11 slim image
 FROM python:3.11-slim
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    git \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install uv (Python package manager)
-RUN pip install --no-cache-dir uv
 
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files first (for better Docker layer caching)
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Copy application code
+# Copy application code (needed for editable install)
 COPY . .
 
-# Install Python dependencies using uv
-# Install dependencies into system Python
-RUN uv pip install --system -e .
+# Create venv and install dependencies
+RUN uv venv && \
+    . .venv/bin/activate && \
+    uv pip install -e .
 
-# Create directories for model caching
-RUN mkdir -p /root/.cache/zaban/models \
-    && mkdir -p /root/.cache/huggingface
+# Create directory for ML models cache
+RUN mkdir -p /app/.cache/huggingface
 
-# Expose port
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV TRANSFORMERS_CACHE=/app/.cache/huggingface
+ENV HF_HOME=/app/.cache/huggingface
+
+# Expose port 8000
 EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/up')" || exit 1
+    CMD curl -f http://localhost:8000/up || exit 1
 
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run database migrations and start the server
+CMD ["/bin/bash", "-c", ". .venv/bin/activate && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+

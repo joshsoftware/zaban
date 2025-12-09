@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from pydantic import EmailStr
 
 
 class SSOLogin(BaseModel):
@@ -15,5 +16,25 @@ class TokenResponse(BaseModel):
 
 class LogoutResponse(BaseModel):
     detail: str = "Logged out"
+
+
+class SignupRequest(BaseModel):
+    first_name: Optional[str]
+    last_name: Optional[str]
+    email: EmailStr
+    password: str
+
+
+class SignupResponse(BaseModel):
+    id: str
+    email: EmailStr
+    first_name: Optional[str]
+    last_name: Optional[str]
+    created_at: Optional[str]
+
+
+class SigninRequest(BaseModel):
+    email: EmailStr
+    password: str
 
 
