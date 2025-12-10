@@ -1,87 +1,155 @@
-'use client';
+"use client";
 
-import { useState, useRef } from 'react';
-import { Volume2, Play, Pause, Download, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useRef, useEffect } from "react";
+import {
+  Volume2,
+  Play,
+  Pause,
+  Download,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
 
 interface TextToSpeechProps {
   onSynthesisComplete?: (audioUrl: string) => void;
 }
 
-export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps) {
-  const [text, setText] = useState('');
-  const [language, setLanguage] = useState('hi');
+export default function TextToSpeech({
+  onSynthesisComplete,
+}: TextToSpeechProps) {
+  const [text, setText] = useState("");
+  const [language, setLanguage] = useState("hi");
   const [autoDetect, setAutoDetect] = useState(false);
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
-  const [voiceType, setVoiceType] = useState('default');
-  const [customDescription, setCustomDescription] = useState('');
-  const [speaker, setSpeaker] = useState('');
+  const [voiceType, setVoiceType] = useState("default");
+  const [customDescription, setCustomDescription] = useState("");
+  const [speaker, setSpeaker] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Update audio element whenever we receive a new audio URL
+  useEffect(() => {
+    if (!audioUrl || !audioRef.current) return;
+
+    const audioEl = audioRef.current;
+    audioEl.src = audioUrl;
+    setIsPlaying(false);
+
+    audioEl.onerror = (e) => {
+      console.error("Audio playback error:", e);
+      setError("Audio file cannot be played. The format may be unsupported.");
+    };
+
+    audioEl.onloadedmetadata = () => {
+      console.log("Audio loaded successfully:", {
+        duration: audioEl.duration,
+        readyState: audioEl.readyState,
+      });
+    };
+
+    // Attempt autoplay
+    audioEl
+      .play()
+      .then(() => setIsPlaying(true))
+      .catch((err) => {
+        console.error("Playback failed:", err);
+        setError("Failed to play audio. Click the play button to try again.");
+        setIsPlaying(false);
+      });
+  }, [audioUrl]);
 
   // Supported languages for IndicParler TTS
   const languages = [
-    { code: 'hi', name: 'Hindi (हिन्दी)' },
-    { code: 'bn', name: 'Bengali (বাংলা)' },
-    { code: 'ta', name: 'Tamil (தமிழ்)' },
-    { code: 'te', name: 'Telugu (తెలుగు)' },
-    { code: 'mr', name: 'Marathi (मराठी)' },
-    { code: 'gu', name: 'Gujarati (ગુજરાતી)' },
-    { code: 'kn', name: 'Kannada (ಕನ್ನಡ)' },
-    { code: 'ml', name: 'Malayalam (മലയാളം)' },
-    { code: 'pa', name: 'Punjabi (ਪੰਜਾਬੀ)' },
-    { code: 'or', name: 'Odia (ଓଡ଼ିଆ)' },
-    { code: 'as', name: 'Assamese (অসমীয়া)' },
-    { code: 'ur', name: 'Urdu (اردو)' },
-    { code: 'ne', name: 'Nepali (नेपाली)' },
-    { code: 'sa', name: 'Sanskrit (संस्कृतम्)' },
-    { code: 'en', name: 'English' },
-    { code: 'brx', name: 'Bodo (बड़ो)' },
-    { code: 'ks', name: 'Kashmiri (कॉशुर)' },
-    { code: 'mni', name: 'Manipuri (মৈতৈলোন্)' },
-    { code: 'sd', name: 'Sindhi (سنڌي)' },
-    { code: 'doi', name: 'Dogri (डोगरी)' },
-    { code: 'kok', name: 'Konkani (कोंकणी)' },
+    { code: "hi", name: "Hindi (हिन्दी)" },
+    { code: "bn", name: "Bengali (বাংলা)" },
+    { code: "ta", name: "Tamil (தமிழ்)" },
+    { code: "te", name: "Telugu (తెలుగు)" },
+    { code: "mr", name: "Marathi (मराठी)" },
+    { code: "gu", name: "Gujarati (ગુજરાતી)" },
+    { code: "kn", name: "Kannada (ಕನ್ನಡ)" },
+    { code: "ml", name: "Malayalam (മലയാളം)" },
+    { code: "pa", name: "Punjabi (ਪੰਜਾਬੀ)" },
+    { code: "or", name: "Odia (ଓଡ଼ିଆ)" },
+    { code: "as", name: "Assamese (অসমীয়া)" },
+    { code: "ur", name: "Urdu (اردو)" },
+    { code: "ne", name: "Nepali (नेपाली)" },
+    { code: "sa", name: "Sanskrit (संस्कृतम्)" },
+    { code: "en", name: "English" },
+    { code: "brx", name: "Bodo (बड़ो)" },
+    { code: "ks", name: "Kashmiri (कॉशुर)" },
+    { code: "mni", name: "Manipuri (মৈতৈলোন্)" },
+    { code: "sd", name: "Sindhi (سنڌي)" },
+    { code: "doi", name: "Dogri (डोगरी)" },
+    { code: "kok", name: "Konkani (कोंकणी)" },
   ];
 
   const voiceTypes = [
-    { value: 'default', label: 'Default', description: 'A clear and natural voice with moderate speed and pitch.' },
-    { value: 'female_expressive', label: 'Female Expressive', description: 'A female speaker delivers a slightly expressive and animated speech with a moderate speed and pitch. The recording is of very high quality, with the speaker\'s voice sounding clear and very close up.' },
-    { value: 'male_calm', label: 'Male Calm', description: 'A male speaker delivers a calm and steady speech with a moderate speed and pitch. The recording is of very high quality.' },
-    { value: 'female_fast', label: 'Female Fast', description: 'A female speaker delivers speech with a fast pace and moderate pitch. The recording is clear and very close up.' },
-    { value: 'male_slow', label: 'Male Slow', description: 'A male speaker delivers speech with a slow pace and deep pitch. The recording is of high quality.' },
-    { value: 'custom', label: 'Custom', description: 'Provide your own voice description' },
+    {
+      value: "default",
+      label: "Default",
+      description: "A clear and natural voice with moderate speed and pitch.",
+    },
+    {
+      value: "female_expressive",
+      label: "Female Expressive",
+      description:
+        "A female speaker delivers a slightly expressive and animated speech with a moderate speed and pitch. The recording is of very high quality, with the speaker's voice sounding clear and very close up.",
+    },
+    {
+      value: "male_calm",
+      label: "Male Calm",
+      description:
+        "A male speaker delivers a calm and steady speech with a moderate speed and pitch. The recording is of very high quality.",
+    },
+    {
+      value: "female_fast",
+      label: "Female Fast",
+      description:
+        "A female speaker delivers speech with a fast pace and moderate pitch. The recording is clear and very close up.",
+    },
+    {
+      value: "male_slow",
+      label: "Male Slow",
+      description:
+        "A male speaker delivers speech with a slow pace and deep pitch. The recording is of high quality.",
+    },
+    {
+      value: "custom",
+      label: "Custom",
+      description: "Provide your own voice description",
+    },
   ];
 
   // Example texts for different languages
   const exampleTexts: Record<string, string> = {
-    hi: 'नमस्ते, आप कैसे हैं?',
-    bn: 'নমস্কার, আপনি কেমন আছেন?',
-    ta: 'வணக்கம், நீங்கள் எப்படி இருக்கிறீர்கள்?',
-    te: 'నమస్కారం, మీరు ఎలా ఉన్నారు?',
-    mr: 'नमस्कार, तुम्ही कसे आहात?',
-    gu: 'નમસ્તે, તમે કેવા છો?',
-    kn: 'ನಮಸ್ಕಾರ, ನೀವು ಹೇಗಿದ್ದೀರಿ?',
-    ml: 'നമസ്കാരം, നിങ്ങൾ എങ്ങനെയുണ്ട്?',
-    pa: 'ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ, ਤੁਸੀਂ ਕਿਵੇਂ ਹੋ?',
-    or: 'ନମସ୍କାର, ଆପଣ କେମିତି ଅଛନ୍ତି?',
-    en: 'Hello, how are you?',
+    hi: "नमस्ते, आप कैसे हैं?",
+    bn: "নমস্কার, আপনি কেমন আছেন?",
+    ta: "வணக்கம், நீங்கள் எப்படி இருக்கிறீர்கள்?",
+    te: "నమస్కారం, మీరు ఎలా ఉన్నారు?",
+    mr: "नमस्कार, तुम्ही कसे आहात?",
+    gu: "નમસ્તે, તમે કેવા છો?",
+    kn: "ನಮಸ್ಕಾರ, ನೀವು ಹೇಗಿದ್ದೀರಿ?",
+    ml: "നമസ്കാരം, നിങ്ങൾ എങ്ങനെയുണ്ട്?",
+    pa: "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ, ਤੁਸੀਂ ਕਿਵੇਂ ਹੋ?",
+    or: "ନମସ୍କାର, ଆପଣ କେମିତି ଅଛନ୍ତି?",
+    en: "Hello, how are you?",
   };
 
   const handleLanguageChange = (newLang: string) => {
-    if (newLang === 'auto') {
+    if (newLang === "auto") {
       setAutoDetect(true);
-      setLanguage('hi'); // Default fallback
+      setLanguage("hi"); // Default fallback
     } else {
       setAutoDetect(false);
       setLanguage(newLang);
       // Auto-fill example text if current text is empty or is an example from another language
       if (!text || Object.values(exampleTexts).includes(text)) {
-        setText(exampleTexts[newLang] || '');
+        setText(exampleTexts[newLang] || "");
       }
     }
     setDetectedLanguage(null);
@@ -89,18 +157,20 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
 
   const detectLanguage = async (text: string): Promise<string> => {
     try {
-      const { detectLanguage: detectLangApi } = await import('../lib/api-service');
+      const { detectLanguage: detectLangApi } = await import(
+        "../lib/api-service"
+      );
       const result = await detectLangApi(text);
       return result.language;
     } catch (error) {
-      console.error('Language detection failed:', error);
-      return 'hi'; // Default to Hindi
+      console.error("Language detection failed:", error);
+      return "hi"; // Default to Hindi
     }
   };
 
   const synthesizeSpeech = async () => {
     if (!text.trim()) {
-      setError('Please enter some text to convert to speech');
+      setError("Please enter some text to convert to speech");
       return;
     }
 
@@ -110,30 +180,55 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
     setDetectedLanguage(null);
 
     try {
-      const { synthesizeSpeech: synthesizeApi } = await import('../lib/api-service');
-      
+      const { synthesizeSpeech: synthesizeApi } = await import(
+        "../lib/api-service"
+      );
+
       // Auto-detect language if enabled
       let targetLanguage = language;
       if (autoDetect) {
-        console.log('🔍 Auto-detecting language...');
+        console.log("🔍 Auto-detecting language...");
         targetLanguage = await detectLanguage(text);
         setDetectedLanguage(targetLanguage);
         console.log(`✅ Detected language: ${targetLanguage}`);
       }
-      
+
       // Determine voice description
       let voiceDescription: string | undefined;
-      if (voiceType === 'custom') {
+      if (voiceType === "custom") {
         voiceDescription = customDescription || undefined;
-      } else if (voiceType !== 'default') {
-        const selectedVoice = voiceTypes.find(v => v.value === voiceType);
+      } else if (voiceType !== "default") {
+        const selectedVoice = voiceTypes.find((v) => v.value === voiceType);
         voiceDescription = selectedVoice?.description;
       }
 
       // Show loading message for Indian languages (can take longer)
-      const nonEnglishLangs = ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'ne', 'sa', 'brx', 'ks', 'mni', 'sd', 'doi', 'kok'];
+      const nonEnglishLangs = [
+        "hi",
+        "bn",
+        "ta",
+        "te",
+        "mr",
+        "gu",
+        "kn",
+        "ml",
+        "pa",
+        "or",
+        "as",
+        "ur",
+        "ne",
+        "sa",
+        "brx",
+        "ks",
+        "mni",
+        "sd",
+        "doi",
+        "kok",
+      ];
       if (nonEnglishLangs.includes(targetLanguage)) {
-        console.log('⏳ Note: First request may take 30-60 seconds to load the model...');
+        console.log(
+          "⏳ Note: First request may take 30-60 seconds to load the model..."
+        );
       }
 
       const audioBlob = await synthesizeApi(
@@ -144,49 +239,54 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
       );
 
       // Verify blob type and size
-      console.log('Audio blob received:', {
+      console.log("Audio blob received:", {
         type: audioBlob.type,
         size: audioBlob.size,
-        sizeKB: (audioBlob.size / 1024).toFixed(2) + ' KB'
+        sizeKB: (audioBlob.size / 1024).toFixed(2) + " KB",
       });
 
       // Create a proper WAV blob with correct MIME type
-      const wavBlob = new Blob([audioBlob], { type: 'audio/wav' });
+      const wavBlob = new Blob([audioBlob], { type: "audio/wav" });
       const url = URL.createObjectURL(wavBlob);
-      
-      console.log('Created audio URL:', url);
+
+      console.log("Created audio URL:", url);
       setAudioUrl(url);
       onSynthesisComplete?.(url);
 
       // Auto-play the audio
       if (audioRef.current) {
         audioRef.current.src = url;
-        
+
         // Add error handler
         audioRef.current.onerror = (e) => {
-          console.error('Audio playback error:', e);
-          setError('Audio file cannot be played. The format may be unsupported.');
+          console.error("Audio playback error:", e);
+          setError(
+            "Audio file cannot be played. The format may be unsupported."
+          );
         };
-        
+
         // Add loaded metadata handler
         audioRef.current.onloadedmetadata = () => {
-          console.log('Audio loaded successfully:', {
+          console.log("Audio loaded successfully:", {
             duration: audioRef.current?.duration,
-            readyState: audioRef.current?.readyState
+            readyState: audioRef.current?.readyState,
           });
         };
-        
-        audioRef.current.play().catch(err => {
-          console.error('Playback failed:', err);
-          setError('Failed to play audio. Click the play button to try again.');
+
+        audioRef.current.play().catch((err) => {
+          console.error("Playback failed:", err);
+          setError("Failed to play audio. Click the play button to try again.");
           setIsPlaying(false);
         });
-        
+
         setIsPlaying(true);
       }
     } catch (error) {
-      console.error('Error synthesizing speech:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to synthesize speech. Please try again.';
+      console.error("Error synthesizing speech:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to synthesize speech. Please try again.";
       setError(errorMessage);
     } finally {
       setIsProcessing(false);
@@ -208,7 +308,7 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
   const downloadAudio = () => {
     if (!audioUrl) return;
 
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = audioUrl;
     a.download = `speech_${language}_${Date.now()}.wav`;
     document.body.appendChild(a);
@@ -225,7 +325,9 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
         </div>
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Text to Speech</h2>
-          <p className="text-sm text-gray-600">Convert text to natural-sounding speech in 21 Indian languages</p>
+          <p className="text-sm text-gray-600">
+            Convert text to natural-sounding speech in 21 Indian languages
+          </p>
         </div>
       </div>
 
@@ -238,7 +340,7 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
               Language
             </label>
             <select
-              value={autoDetect ? 'auto' : language}
+              value={autoDetect ? "auto" : language}
               onChange={(e) => handleLanguageChange(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900"
             >
@@ -252,7 +354,9 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
             </select>
             {autoDetect && detectedLanguage && (
               <p className="text-xs text-green-600 mt-1">
-                ✅ Detected: {languages.find(l => l.code === detectedLanguage)?.name || detectedLanguage}
+                ✅ Detected:{" "}
+                {languages.find((l) => l.code === detectedLanguage)?.name ||
+                  detectedLanguage}
               </p>
             )}
           </div>
@@ -277,7 +381,7 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
         </div>
 
         {/* Custom Voice Description (if custom voice type selected) */}
-        {voiceType === 'custom' && (
+        {voiceType === "custom" && (
           <div>
             <label className="block text-sm font-medium text-gray-800 mb-2">
               Voice Description
@@ -297,7 +401,7 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
           onClick={() => setShowAdvanced(!showAdvanced)}
           className="text-sm text-purple-600 hover:text-purple-700 font-medium"
         >
-          {showAdvanced ? '− Hide' : '+ Show'} Advanced Options
+          {showAdvanced ? "− Hide" : "+ Show"} Advanced Options
         </button>
 
         {/* Advanced Options */}
@@ -314,7 +418,8 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Specify a speaker name for consistent voice characteristics across multiple requests
+              Specify a speaker name for consistent voice characteristics across
+              multiple requests
             </p>
           </div>
         )}
@@ -332,9 +437,7 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
             rows={4}
           />
           <div className="flex justify-between items-center mt-2">
-            <p className="text-xs text-gray-500">
-              {text.length} characters
-            </p>
+            <p className="text-xs text-gray-500">{text.length} characters</p>
             {exampleTexts[language] && (
               <button
                 onClick={() => setText(exampleTexts[language])}
@@ -366,7 +469,8 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
           {isProcessing ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              Generating Speech... {language !== 'en' && '(may take 30-60s on first request)'}
+              Generating Speech...{" "}
+              {language !== "en" && "(may take 30-60s on first request)"}
             </>
           ) : (
             <>
@@ -375,10 +479,12 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
             </>
           )}
         </button>
-        
-        {isProcessing && language !== 'en' && (
+
+        {isProcessing && language !== "en" && (
           <div className="text-sm text-gray-600 text-center mt-2">
-            ⏳ First request for {languages.find(l => l.code === language)?.name} may take 30-60 seconds. Please wait...
+            ⏳ First request for{" "}
+            {languages.find((l) => l.code === language)?.name} may take 30-60
+            seconds. Please wait...
           </div>
         )}
       </div>
@@ -386,8 +492,10 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
       {/* Audio Player */}
       {audioUrl && (
         <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl shadow-sm border border-purple-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Generated Speech</h3>
-          
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Generated Speech
+          </h3>
+
           <div className="flex items-center gap-4">
             <button
               onClick={togglePlayPause}
@@ -424,15 +532,16 @@ export default function TextToSpeech({ onSynthesisComplete }: TextToSpeechProps)
 
       {/* Info Section */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-blue-900 mb-2">ℹ️ About IndicParler TTS</h4>
+        <h4 className="text-sm font-semibold text-blue-900 mb-2">
+          ℹ️ About IndicParler TTS
+        </h4>
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• Supports 21 Indian languages with 69 unique voices</li>
           <li>• Controllable voice characteristics through descriptions</li>
           <li>• High-quality, natural-sounding speech synthesis</li>
-          <li>• Powered by AI4Bharat's IndicParler model</li>
+          <li>• Powered by AI4Bharat’s IndicParler model</li>
         </ul>
       </div>
     </div>
   );
 }
-
