@@ -58,11 +58,12 @@ export const clearAuthTokens = (): void => {
 export const initiateGoogleLogin = (): void => {
   // Validate that client_id is configured
   if (!config.google.clientId) {
-    throw new Error("Google Client ID is not configured");
-    return;
+    throw new Error(
+      "Google Sign-In is not configured properly. Please check your environment variables."
+    );
   }
 
-  const googleAuthUrl = config.google.authUrl;
+  const googleAuthUrl = "https://accounts.google.com/o/oauth2/v2/auth";
   const params = new URLSearchParams({
     client_id: config.google.clientId,
     redirect_uri: config.google.redirectUri,

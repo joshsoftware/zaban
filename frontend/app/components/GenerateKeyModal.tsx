@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+import { config } from "../lib/config";
 
 interface GenerateKeyModalProps {
   isOpen: boolean;
@@ -11,27 +12,26 @@ interface GenerateKeyModalProps {
 
 // Helper function to get access token
 const getAccessToken = (): string | null => {
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     // In your production code, use: localStorage.getItem('access_token')
     // For now, we'll simulate with state in this demo
-    return localStorage.getItem('access_token');
+    return localStorage.getItem("access_token");
   }
   return null;
 };
 
-export default function GenerateKeyModal({ 
-  isOpen, 
-  onClose, 
-  onKeyGenerated 
+export default function GenerateKeyModal({
+  isOpen,
+  onClose,
+  onKeyGenerated,
 }: GenerateKeyModalProps) {
-  const [keyName, setKeyName] = useState('');
+  const [keyName, setKeyName] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleCreateKey = async () => {
-    console.log("hello");
     if (!keyName.trim()) return;
 
     setIsLoading(true);
@@ -39,16 +39,16 @@ export default function GenerateKeyModal({
 
     try {
       const token = getAccessToken();
-      
+
       if (!token) {
-        throw new Error('No authentication token found. Please log in.');
+        throw new Error("No authentication token found. Please log in.");
       }
 
-      const response = await fetch('http://localhost:8000/api/v1/api-keys', {
-        method: 'POST',
+      const response = await fetch(`${config.api.baseUrl}/api/v1/api-keys`, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: keyName.trim(),
@@ -57,22 +57,27 @@ export default function GenerateKeyModal({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed to create API key (${response.status})`);
+        throw new Error(
+          errorData.message || `Failed to create API key (${response.status})`
+        );
       }
 
       const data = await response.json();
-      const apiKey = data.secret_key || '';
-      
+      const apiKey = data.secret_key || "";
+
       if (!apiKey) {
-        throw new Error('No API key returned from server');
+        throw new Error("No API key returned from server");
       }
 
       setGeneratedKey(apiKey);
       onKeyGenerated?.(keyName, apiKey);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred while creating the API key';
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "An error occurred while creating the API key";
       setError(errorMessage);
-      console.error('Error creating API key:', err);
+      console.error("Error creating API key:", err);
     } finally {
       setIsLoading(false);
     }
@@ -84,14 +89,13 @@ export default function GenerateKeyModal({
     try {
       await navigator.clipboard.writeText(generatedKey);
       setIsCopied(true);
-
     } catch (error) {
-      console.error('Failed to copy:', error);
+      console.error("Failed to copy:", error);
     }
   };
 
   const handleClose = () => {
-    setKeyName('');
+    setKeyName("");
     setGeneratedKey(null);
     setIsCopied(false);
     setError(null);
@@ -153,23 +157,21 @@ interface CreateKeyFormProps {
   error: string | null;
 }
 
-function CreateKeyForm({ 
-  keyName, 
-  onKeyNameChange, 
-  onCreate, 
+function CreateKeyForm({
+  keyName,
+  onKeyNameChange,
+  onCreate,
   onCancel,
   isLoading,
-  error
+  error,
 }: CreateKeyFormProps) {
   return (
     <>
-      <h3 className="text-xl font-bold text-gray-900 mb-4">
-        Create API Key
-      </h3>
-      
+      <h3 className="text-xl font-bold text-gray-900 mb-4">Create API Key</h3>
+
       <div className="mb-6">
-        <label 
-          htmlFor="keyName" 
+        <label
+          htmlFor="keyName"
           className="block text-sm font-medium text-gray-900 mb-2"
         >
           Name this key
@@ -211,7 +213,7 @@ function CreateKeyForm({
               Creating...
             </>
           ) : (
-            'Create'
+            "Create"
           )}
         </button>
       </div>
@@ -227,11 +229,11 @@ interface KeyGeneratedSuccessProps {
   onDone: () => void;
 }
 
-function KeyGeneratedSuccess({ 
-  generatedKey, 
-  isCopied, 
-  onCopy, 
-  onDone 
+function KeyGeneratedSuccess({
+  generatedKey,
+  isCopied,
+  onCopy,
+  onDone,
 }: KeyGeneratedSuccessProps) {
   return (
     <>
@@ -282,17 +284,17 @@ function KeyGeneratedSuccess({
 function SuccessIcon() {
   return (
     <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-      <svg 
-        className="w-6 h-6 text-green-500" 
-        fill="none" 
-        stroke="currentColor" 
+      <svg
+        className="w-6 h-6 text-green-500"
+        fill="none"
+        stroke="currentColor"
         viewBox="0 0 24 24"
       >
-        <path 
-          strokeLinecap="round" 
-          strokeLinejoin="round" 
-          strokeWidth={2} 
-          d="M5 13l4 4L19 7" 
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M5 13l4 4L19 7"
         />
       </svg>
     </div>
@@ -301,17 +303,17 @@ function SuccessIcon() {
 
 function CopyIcon() {
   return (
-    <svg 
-      className="w-5 h-5" 
-      fill="none" 
-      stroke="currentColor" 
+    <svg
+      className="w-5 h-5"
+      fill="none"
+      stroke="currentColor"
       viewBox="0 0 24 24"
     >
-      <path 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-        strokeWidth={2} 
-        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" 
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
       />
     </svg>
   );
@@ -319,19 +321,18 @@ function CopyIcon() {
 
 function CheckIcon() {
   return (
-    <svg 
-      className="w-5 h-5" 
-      fill="none" 
-      stroke="currentColor" 
+    <svg
+      className="w-5 h-5"
+      fill="none"
+      stroke="currentColor"
       viewBox="0 0 24 24"
     >
-      <path 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-        strokeWidth={2} 
-        d="M5 13l4 4L19 7" 
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M5 13l4 4L19 7"
       />
     </svg>
   );
 }
-

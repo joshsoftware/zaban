@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
+import os
+from pathlib import Path
 
 # Load environment variables as early as possible so modules that read env at
 # import time (e.g., OAuth clients) receive the correct values.
@@ -14,7 +17,10 @@ from .routes import auth as auth_routes
 
 app = FastAPI(title="AI4Bharat FastAPI Backend", version="0.1.0")
 
-# Configure CORS
+"""CORS configuration for browser-based clients (e.g., HTML tester).
+- allow_origins: set to '*' for simplicity during development
+- allow_credentials: keep False when using '*' (per CORS spec)
+"""
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -30,13 +36,48 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    """Load environment variables from .env file on application startup."""
+    """Load environment variables and preload models at startup."""
     load_dotenv(override=True)
+    
+    # Preload faster-whisper model once at startup to avoid per-request loads
+    try:
+        if os.getenv("PRELOAD_FASTER_WHISPER", "true").lower() == "true":
+            from .services.faster_whisper_stt import get_faster_whisper_stt_service
+            model_name = os.getenv("WHISPER_MODEL", "large-v3")
+            print(f"🚀 Preloading faster-whisper model '{model_name}' at startup...")
+            service = get_faster_whisper_stt_service()
+            service.load_model(model_name)
+            print(f"✅ faster-whisper model '{model_name}' preloaded successfully. Ready for all languages.")
+        else:
+            print("ℹ️  faster-whisper preload disabled (PRELOAD_FASTER_WHISPER=false)")
+    except Exception as e:
+        print(f"⚠️  faster-whisper preload failed: {e}")
+        print("   Model will be loaded on first request (slower)")
 
 
 @app.get("/up")
 async def up():
     return {"status": "ok"}
+
+
+@app.get("/translate-ui")
+async def translation_ui():
+    """Serve the translation UI HTML page"""
+    docs_dir = Path(__file__).parent.parent / "docs"
+    html_file = docs_dir / "test_translation.html"
+    if html_file.exists():
+        return FileResponse(html_file, media_type="text/html")
+    return {"error": "Translation UI not found"}
+
+
+@app.get("/stt-ui")
+async def stt_ui():
+    """Serve the STT UI HTML page"""
+    docs_dir = Path(__file__).parent.parent / "docs"
+    html_file = docs_dir / "test_stt_voice.html"
+    if html_file.exists():
+        return FileResponse(html_file, media_type="text/html")
+    return {"error": "STT UI not found"}
 
 
 app.include_router(v1_router, prefix="/api/v1")
