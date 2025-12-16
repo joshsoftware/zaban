@@ -1,6 +1,24 @@
 // lib/api-service.ts
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+import { clearAuthTokens } from "./auth";
+
+const API_BASE_URL = "http://localhost:8000/api/v1";
+
+/**
+ * Clear tokens and redirect to login with optional reason
+ */
+const redirectToLogin = (reason: "expired" | "missing") => {
+  clearAuthTokens();
+  if (typeof window !== "undefined") {
+    const search = reason ? `?reason=${reason}` : "";
+    window.location.href = `/login${search}`;
+  }
+  throw new Error(
+    reason === "expired"
+      ? "Session expired. Redirecting to login."
+      : "Not authenticated. Redirecting to login."
+  );
+};
 
 export interface APIKey {
   id: string;
@@ -19,8 +37,8 @@ interface APIKeysResponse {
  * Get stored access token from localStorage
  */
 export const getAccessToken = (): string | null => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('access_token');
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("access_token");
   }
   return null;
 };
@@ -35,13 +53,13 @@ const makeAuthenticatedRequest = async (
   const token = getAccessToken();
 
   if (!token) {
-    throw new Error('No access token found. Please log in.');
+    redirectToLogin("missing");
   }
 
   const url = `${API_BASE_URL}${endpoint}`;
   const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
     ...options.headers,
   };
 
@@ -52,10 +70,10 @@ const makeAuthenticatedRequest = async (
 
   if (!response.ok) {
     if (response.status === 401) {
-      throw new Error('Unauthorized: Invalid or expired token. Please log in again.');
+      redirectToLogin("expired");
     }
     if (response.status === 404) {
-      throw new Error('Resource not found.');
+      throw new Error("Resource not found.");
     }
     throw new Error(`Request failed: ${response.statusText}`);
   }
@@ -68,11 +86,11 @@ const makeAuthenticatedRequest = async (
  */
 export const fetchAPIKeys = async (): Promise<APIKey[]> => {
   try {
-    const response = await makeAuthenticatedRequest('/api-keys');
+    const response = await makeAuthenticatedRequest("/api-keys");
     const data: APIKeysResponse = await response.json();
     return data.api_keys || [];
   } catch (error) {
-    console.error('Error fetching API keys:', error);
+    console.error("Error fetching API keys:", error);
     throw error;
   }
 };
@@ -84,7 +102,7 @@ export const fetchAPIKeys = async (): Promise<APIKey[]> => {
 export const deleteAPIKey = async (apiKeyId: string): Promise<void> => {
   try {
     await makeAuthenticatedRequest(`/api-keys/${apiKeyId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   } catch (error) {
     console.error(`Error deleting API key ${apiKeyId}:`, error);
@@ -96,8 +114,8 @@ export const deleteAPIKey = async (apiKeyId: string): Promise<void> => {
  * Get stored secret API key from localStorage
  */
 export const getSecretApiKey = (): string | null => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('secret_api_key');
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("secret_api_key");
   }
   return null;
 };
@@ -106,8 +124,8 @@ export const getSecretApiKey = (): string | null => {
  * Set secret API key in localStorage
  */
 export const setSecretApiKey = (key: string): void => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('secret_api_key', key);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("secret_api_key", key);
   }
 };
 
@@ -119,20 +137,20 @@ const makeApiRequestWithKey = async (
   options: RequestInit = {}
 ) => {
   const secretKey = getSecretApiKey();
-  
+
   if (!secretKey) {
-    throw new Error('No API key found. Please set your API key in settings.');
+    throw new Error("No API key found. Please set your API key in settings.");
   }
 
   const url = `${API_BASE_URL}${endpoint}`;
-  
+
   // Remove Content-Type from headers if FormData is being sent
   const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    'secret_api_key': secretKey,
-    'X-API-Key': secretKey, // Also send X-API-Key for backend compatibility
-    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-    ...(options.headers as Record<string, string> || {}),
+    secret_api_key: secretKey,
+    "X-API-Key": secretKey, // Also send X-API-Key for backend compatibility
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    ...((options.headers as Record<string, string>) || {}),
   };
 
   const response = await fetch(url, {
@@ -141,11 +159,18 @@ const makeApiRequestWithKey = async (
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-    const errorMessage = errorData.detail || errorData.message || `Request failed: ${response.statusText}`;
-    
+    const errorData = await response
+      .json()
+      .catch(() => ({ detail: response.statusText }));
+    const errorMessage =
+      errorData.detail ||
+      errorData.message ||
+      `Request failed: ${response.statusText}`;
+
     if (response.status === 401 || response.status === 403) {
-      throw new Error('Invalid API key. Please check your API key in settings.');
+      throw new Error(
+        "Invalid API key. Please check your API key in settings."
+      );
     }
     if (response.status === 400) {
       throw new Error(errorMessage);
@@ -171,35 +196,39 @@ export interface STTResponse {
 export const transcribeAudio = async (
   audioFile: File,
   lang?: string,
-  model: string = 'whisper'
+  model: string = "whisper"
 ): Promise<STTResponse> => {
   try {
     const formData = new FormData();
-    formData.append('audio', audioFile);
+    formData.append("audio", audioFile);
     if (lang) {
-      formData.append('lang', lang);
+      formData.append("lang", lang);
     }
-    formData.append('model', model);
+    formData.append("model", model);
 
-    const response = await makeApiRequestWithKey('/stt', {
-      method: 'POST',
+    const response = await makeApiRequestWithKey("/stt", {
+      method: "POST",
       body: formData,
     });
 
     const data = await response.json();
-    
+
     // Handle different response formats
     if (data.text) {
       return { text: data.text, language: data.language, model: data.model };
     } else if (data.transcription) {
-      return { text: data.transcription, language: data.language, model: data.model };
-    } else if (typeof data === 'string') {
+      return {
+        text: data.transcription,
+        language: data.language,
+        model: data.model,
+      };
+    } else if (typeof data === "string") {
       return { text: data };
     }
-    
-    throw new Error('Unexpected response format from STT API');
+
+    throw new Error("Unexpected response format from STT API");
   } catch (error) {
-    console.error('Error transcribing audio:', error);
+    console.error("Error transcribing audio:", error);
     throw error;
   }
 };
@@ -239,15 +268,15 @@ export const translateText = async (
       requestBody.auto_detect = true;
     }
 
-    const response = await makeApiRequestWithKey('/translate', {
-      method: 'POST',
+    const response = await makeApiRequestWithKey("/translate", {
+      method: "POST",
       body: JSON.stringify(requestBody),
     });
 
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('Error translating text:', error);
+    console.error("Error translating text:", error);
     throw error;
   }
 };
@@ -262,34 +291,36 @@ export interface LanguageDetectionResponse {
   method: string;
 }
 
-export const detectLanguage = async (text: string): Promise<LanguageDetectionResponse> => {
+export const detectLanguage = async (
+  text: string
+): Promise<LanguageDetectionResponse> => {
   try {
-    const response = await makeApiRequestWithKey('/detect-language', {
-      method: 'POST',
+    const response = await makeApiRequestWithKey("/detect-language", {
+      method: "POST",
       body: JSON.stringify({ text }),
     });
 
     const data = await response.json();
-    
+
     // Normalize to 2-letter code if it's in BCP-47 format
-    let langCode = data.detected_lang || data.language || 'en';
-    if (langCode.includes('_')) {
-      langCode = langCode.split('_')[0]; // hin_Deva -> hin
+    let langCode = data.detected_lang || data.language || "en";
+    if (langCode.includes("_")) {
+      langCode = langCode.split("_")[0]; // hin_Deva -> hin
     }
     langCode = langCode.substring(0, 2).toLowerCase(); // hin -> hi
-    
+
     return {
       language: langCode,
       confidence: data.confidence || 1.0,
-      method: data.method || 'fasttext'
+      method: data.method || "fasttext",
     };
   } catch (error) {
-    console.error('Error detecting language:', error);
+    console.error("Error detecting language:", error);
     // Return default instead of throwing
     return {
-      language: 'en',
+      language: "en",
       confidence: 0,
-      method: 'fallback'
+      method: "fallback",
     };
   }
 };
@@ -324,8 +355,8 @@ export const synthesizeSpeech = async (
       requestBody.speaker = speaker;
     }
 
-    const response = await makeApiRequestWithKey('/tts', {
-      method: 'POST',
+    const response = await makeApiRequestWithKey("/tts", {
+      method: "POST",
       body: JSON.stringify(requestBody),
     });
 
@@ -333,7 +364,7 @@ export const synthesizeSpeech = async (
     const audioBlob = await response.blob();
     return audioBlob;
   } catch (error) {
-    console.error('Error synthesizing speech:', error);
+    console.error("Error synthesizing speech:", error);
     throw error;
   }
 };

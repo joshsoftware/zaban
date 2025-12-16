@@ -1,18 +1,52 @@
-'use client';
+"use client";
 
-import { motion } from 'framer-motion';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useState } from 'react';
+import { motion } from "framer-motion";
+import Image from "next/image";
+import Link from "next/link";
+import { useState } from "react";
+import { config } from "../lib/config";
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement password reset email logic
-    setIsSubmitted(true);
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const res = await fetch(
+        `${config.api.baseUrl}/api/v1/auth/forgot-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        }
+      );
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(
+          data.detail || "Failed to send reset email. Please try again."
+        );
+      }
+
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error("Error requesting password reset:", error);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to send reset email. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -43,8 +77,12 @@ export default function ForgotPasswordPage() {
           <>
             {/* Header */}
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Forgot Password?</h1>
-              <p className="text-gray-700">No worries, we&apos;ll send you reset instructions</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Forgot Password?
+              </h1>
+              <p className="text-gray-700">
+                No worries, we&apos;ll send you reset instructions
+              </p>
             </div>
 
             {/* Forgot Password Form */}
@@ -56,7 +94,10 @@ export default function ForgotPasswordPage() {
               transition={{ delay: 0.4, duration: 0.6 }}
             >
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-900 mb-2">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-900 mb-2"
+                >
                   Email Address
                 </label>
                 <motion.input
@@ -72,13 +113,24 @@ export default function ForgotPasswordPage() {
                 />
               </div>
 
+              {error && (
+                <motion.div
+                  className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  {error}
+                </motion.div>
+              )}
+
               <motion.button
                 type="submit"
-                className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600 transition-all duration-200"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                disabled={isLoading}
+                className="w-full bg-orange-500 text-white py-3 rounded-lg font-medium hover:bg-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                whileHover={!isLoading ? { scale: 1.02 } : {}}
+                whileTap={!isLoading ? { scale: 0.98 } : {}}
               >
-                Reset Password
+                {isLoading ? "Sending..." : "Reset Password"}
               </motion.button>
             </motion.form>
           </>
@@ -93,17 +145,30 @@ export default function ForgotPasswordPage() {
             >
               <div className="mb-6 flex justify-center">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-8 h-8 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 </div>
               </div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Check Your Email</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Check Your Email
+              </h1>
               <p className="text-gray-700 mb-6">
-                We&apos;ve sent password reset instructions to <span className="font-medium text-gray-900">{email}</span>
+                We&apos;ve sent password reset instructions to{" "}
+                <span className="font-medium text-gray-900">{email}</span>
               </p>
               <p className="text-sm text-gray-600 mb-8">
-                Didn&apos;t receive the email? Check your spam folder or{' '}
+                Didn&apos;t receive the email? Check your spam folder or{" "}
                 <button
                   onClick={() => setIsSubmitted(false)}
                   className="text-orange-500 hover:text-orange-600 font-medium transition-colors"
@@ -126,8 +191,18 @@ export default function ForgotPasswordPage() {
             href="/login"
             className="inline-flex items-center text-gray-700 hover:text-orange-500 font-medium transition-colors"
           >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            <svg
+              className="w-4 h-4 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
             </svg>
             Back to Login
           </Link>
