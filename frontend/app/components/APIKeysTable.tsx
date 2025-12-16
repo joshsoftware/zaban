@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { fetchAPIKeys, deleteAPIKey, type APIKey } from '../lib/api-service';
-import { Trash2 } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { fetchAPIKeys, deleteAPIKey, type APIKey } from "../lib/api-service";
+import { Trash2 } from "lucide-react";
 
 // Re-export APIKey type for use in other components
 export type { APIKey };
 
-type SortOrder = 'asc' | 'desc';
+type SortOrder = "asc" | "desc";
 
 export default function APIKeysTable() {
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -20,7 +20,7 @@ export default function APIKeysTable() {
   // Load API keys on mount
   useEffect(() => {
     loadAPIKeys();
-  },[]);
+  }, []);
 
   const loadAPIKeys = async () => {
     try {
@@ -29,7 +29,7 @@ export default function APIKeysTable() {
       const keys = await fetchAPIKeys();
       setApiKeys(keys);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load API keys');
+      setError(err instanceof Error ? err.message : "Failed to load API keys");
     } finally {
       setLoading(false);
     }
@@ -46,13 +46,14 @@ export default function APIKeysTable() {
       setDeleting(apiKeyId);
       setDeleteError(null);
       await deleteAPIKey(apiKeyId);
-      
+
       // Refetch the API keys list after successful deletion
       await loadAPIKeys();
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to delete API key';
+      const errorMsg =
+        err instanceof Error ? err.message : "Failed to delete API key";
       setDeleteError(errorMsg);
-      console.error('Delete error:', err);
+      console.error("Delete error:", err);
     } finally {
       setDeleting(null);
     }
@@ -62,20 +63,20 @@ export default function APIKeysTable() {
     const dateA = new Date(a.created_at).getTime();
     const dateB = new Date(b.created_at).getTime();
     const comparison = dateB - dateA;
-    return sortOrder === 'desc' ? comparison : -comparison;
+    return sortOrder === "desc" ? comparison : -comparison;
   });
 
   const toggleSortOrder = () => {
-    setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
   };
 
   const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -118,7 +119,7 @@ function TableHeader({ sortOrder, onToggleSort }: TableHeaderProps) {
           onClick={onToggleSort}
           className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
         >
-          {sortOrder === 'desc' ? 'Newest First' : 'Oldest First'}
+          {sortOrder === "desc" ? "Newest First" : "Oldest First"}
         </button>
       </div>
     </div>
@@ -169,7 +170,12 @@ interface TableBodyProps {
   deleting: string | null;
 }
 
-function TableBody({ apiKeys, formatDate, onDelete, deleting }: TableBodyProps) {
+function TableBody({
+  apiKeys,
+  formatDate,
+  onDelete,
+  deleting,
+}: TableBodyProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -225,18 +231,18 @@ function TableRow({ apiKey, formatDate, onDelete, isDeleting }: TableRowProps) {
         <span
           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
             apiKey.is_active
-              ? 'bg-green-100 text-green-800'
-              : 'bg-red-100 text-red-800'
+              ? "bg-green-100 text-green-800"
+              : "bg-red-100 text-red-800"
           }`}
         >
-          {apiKey.is_active ? 'Active' : 'Inactive'}
+          {apiKey.is_active ? "Active" : "Inactive"}
         </span>
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
         {formatDate(apiKey.created_at)}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-        {apiKey.revoked_at ? formatDate(apiKey.revoked_at) : '—'}
+        {apiKey.revoked_at ? formatDate(apiKey.revoked_at) : "—"}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm">
         <button
@@ -245,7 +251,7 @@ function TableRow({ apiKey, formatDate, onDelete, isDeleting }: TableRowProps) {
           className="inline-flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Delete this API key"
         >
-          {apiKey.is_active? <Trash2 size={16} /> : ''}
+          {apiKey.is_active ? <Trash2 size={16} /> : ""}
         </button>
       </td>
     </tr>
