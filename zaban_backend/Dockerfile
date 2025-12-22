@@ -25,7 +25,7 @@ COPY . .
 # Create venv and install dependencies
 RUN uv venv && \
     . .venv/bin/activate && \
-    uv pip install -e .
+    uv pip install .
 
 # Create directory for ML models cache
 RUN mkdir -p /app/.cache/huggingface
