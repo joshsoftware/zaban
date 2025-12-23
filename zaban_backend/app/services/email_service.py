@@ -1,20 +1,16 @@
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from typing import Optional
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 
 class EmailService:
-    """Service for sending emails via SMTP"""
+    """Service for sending emails via SendGrid"""
 
     def __init__(self):
         self.frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        self.smtp_host = os.getenv("SMTP_HOST", "")
-        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        self.smtp_username = os.getenv("SMTP_USERNAME", "")
-        self.smtp_password = os.getenv("SMTP_PASSWORD", "")
-        self.smtp_from_email = os.getenv("SMTP_FROM_EMAIL", "")
+        self.sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+        self.from_email = os.getenv("SENDGRID_FROM_EMAIL")
 
     def _build_email_bodies(self, reset_link: str) -> tuple[str, str]:
         """Return (text_body, html_body) for the reset email."""
@@ -69,7 +65,7 @@ class EmailService:
 
     def send_password_reset_email(self, to_email: str, reset_token: str) -> bool:
         """
-        Send password reset email to user via SMTP
+        Send password reset email to user via SendGrid
 
         Args:
             to_email: Recipient email address
@@ -78,32 +74,33 @@ class EmailService:
         Returns:
             True if email sent successfully, False otherwise
         """
-        if not all([self.smtp_host, self.smtp_username, self.smtp_password, self.smtp_from_email]):
-            print("⚠️  SMTP is not configured. Email sending disabled.")
-            print("   Set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM_EMAIL to enable email.")
+        if not self.sendgrid_api_key or not self.from_email:
+            print("⚠️  SendGrid is not configured. Email sending disabled.")
+            print("   Set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL to enable email.")
             return False
 
         reset_link = f"{self.frontend_url}/reset-password?token={reset_token}"
         text_body, html_body = self._build_email_bodies(reset_link)
 
+        message = Mail(
+            from_email=self.from_email,
+            to_emails=to_email,
+            subject='Reset Your Password - Zaban',
+            html_content=html_body,
+            plain_text_content=text_body
+        )
+
         try:
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = "Reset Your Password - Zaban"
-            msg['From'] = self.smtp_from_email
-            msg['To'] = to_email
-
-            part1 = MIMEText(text_body, 'plain')
-            part2 = MIMEText(html_body, 'html')
-            msg.attach(part1)
-            msg.attach(part2)
-
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.smtp_username, self.smtp_password)
-                server.send_message(msg)
+            sg = SendGridAPIClient(self.sendgrid_api_key)
+            response = sg.send(message)
             
-            print(f"✅ Password reset email sent to {to_email} via SMTP")
-            return True
+            if response.status_code in (200, 201, 202):
+                print(f"✅ Password reset email sent to {to_email} via SendGrid")
+                return True
+            else:
+                print(f"❌ Failed to send email. Status Code: {response.status_code}")
+                # print(response.body)
+                return False
 
         except Exception as e:
             print(f"❌ Failed to send password reset email to {to_email}: {e}")

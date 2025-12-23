@@ -7,7 +7,9 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { config } from "../lib/config";
 
-export default function ResetPasswordPage() {
+import { Suspense } from "react";
+
+function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
@@ -389,5 +391,22 @@ export default function ResetPasswordPage() {
         </motion.form>
       </motion.div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+          <div className="animate-pulse flex flex-col items-center">
+            <div className="h-12 w-12 bg-gray-300 rounded-full mb-4"></div>
+            <div className="h-4 w-48 bg-gray-300 rounded"></div>
+          </div>
+        </div>
+      }
+    >
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
