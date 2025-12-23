@@ -1,12 +1,10 @@
 // lib/api-service.ts
 
 import { clearAuthTokens } from "./auth";
+import { config } from "./config";
 
-const API_BASE_URL = "http://localhost:8000/api/v1";
+const API_BASE_URL = `${config.api.baseUrl}/api/v1`;
 
-/**
- * Clear tokens and redirect to login with optional reason
- */
 const redirectToLogin = (reason: "expired" | "missing") => {
   clearAuthTokens();
   if (typeof window !== "undefined") {
@@ -33,9 +31,6 @@ interface APIKeysResponse {
   total: number;
 }
 
-/**
- * Get stored access token from localStorage
- */
 export const getAccessToken = (): string | null => {
   if (typeof window !== "undefined") {
     return localStorage.getItem("access_token");
@@ -255,7 +250,14 @@ export const translateText = async (
   autoDetect: boolean = false
 ): Promise<TranslationResponse> => {
   try {
-    const requestBody: any = {
+    interface TranslateRequestBody {
+      text: string;
+      target_lang: string;
+      source_lang?: string;
+      auto_detect?: boolean;
+    }
+
+    const requestBody: TranslateRequestBody = {
       text,
       target_lang: targetLang,
     };
@@ -339,7 +341,14 @@ export const synthesizeSpeech = async (
   speaker?: string
 ): Promise<Blob> => {
   try {
-    const requestBody: any = {
+    interface TTSRequestBody {
+      text: string;
+      language?: string;
+      voice_description?: string;
+      speaker?: string;
+    }
+
+    const requestBody: TTSRequestBody = {
       text,
     };
 
