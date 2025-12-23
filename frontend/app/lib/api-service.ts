@@ -241,7 +241,14 @@ export const translateText = async (
   autoDetect: boolean = false
 ): Promise<TranslationResponse> => {
   try {
-    const requestBody: any = {
+    interface TranslateRequestBody {
+      text: string;
+      target_lang: string;
+      source_lang?: string;
+      auto_detect?: boolean;
+    }
+
+    const requestBody: TranslateRequestBody = {
       text,
       target_lang: targetLang,
     };
@@ -325,7 +332,14 @@ export const synthesizeSpeech = async (
   speaker?: string
 ): Promise<Blob> => {
   try {
-    const requestBody: any = {
+    interface TTSRequestBody {
+      text: string;
+      language?: string;
+      voice_description?: string;
+      speaker?: string;
+    }
+
+    const requestBody: TTSRequestBody = {
       text,
     };
 
