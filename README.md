@@ -1,43 +1,77 @@
-Zaban
+# Zaban
 
-Zaban is a SaaS platform offering AI-powered APIs for Text-to-Speech (TTS), Speech-to-Text (STT), Translation, and Transliteration. Users can sign up, generate API keys, and integrate these capabilities into their apps with minimal friction.
+Zaban is a SaaS platform offering AI-powered APIs for Text-to-Speech (TTS), Speech-to-Text (STT), Translation, and Transliteration. It focuses on developer experience, allowing users to sign up, generate API keys, and integrate capabilities into their apps.
 
-Think of it like an easy-to-integrate alternative to similar AI platforms, with a focus on developer experience.
+## Architecture
 
-Key Features
+*   **Backend**: Python FastAPI (with SQLAlchemy, Alembic, PostgreSQL)
+*   **Frontend**: Next.js (React, Tailwind CSS)
+*   **Database**: PostgreSQL
+*   **Infrastructure**: Docker & Docker Compose
 
-- User accounts with email/password sign-in, password recovery, and profile management
-- API key issuance, rotation, and revocation
-- AI endpoints for:
-  - Text-to-Speech (TTS): generate natural-sounding audio from text
-  - Speech-to-Text (STT): transcribe audio to text
-  - Translation: convert text between languages
-  - Transliteration: convert text between scripts while preserving pronunciation
+## Repository Structure
 
-Architecture
+*   `zaban_backend/`: The FastAPI backend application.
+*   `frontend/`: The Next.js frontend dashboard.
+*   `docker-compose.yml`: Root Docker Compose configuration for orchestrating the services.
 
-- Backend: Ruby on Rails 8 (PostgreSQL, JWT/Devise authentication)
-- Frontend: Next.js dashboard for profile, API keys, and usage analytics
-- Providers: Integrations with AI4Bharat, OpenAI, and others
+## Quick Start (Docker)
 
-Monorepo Layout
+The easiest way to run the entire stack is using Docker Compose.
 
-- `zaban_backend/`: Rails 8 API backend
-  - See `zaban_backend/README.md` for setup and local development
-- (Planned) `zaban_frontend/`: Next.js dashboard
+### Prerequisites
 
-Quick Start
+*   Docker
+*   Docker Compose
 
-1) Backend setup
+### 1. Configure Environment Variables
 
-- Ensure you have Ruby, Bundler, PostgreSQL installed
-- See `zaban_backend/README.md` for full instructions
+This project relies on environment variables for configuration. You need to set up `.env` files for both the frontend and backend.
 
-2) Using the APIs
+**Backend (`zaban_backend/.env`):**
 
-- Sign up, create an API key in the dashboard (TBD)
-- Call REST endpoints with the header `Authorization: Bearer <API_KEY>`
+Copy `zaban_backend/.env.example` to `zaban_backend/.env`:
+```bash
+cp zaban_backend/.env.example zaban_backend/.env
+```
 
-Status
+**Frontend (`frontend/.env`):**
 
-- Active development. Contributions and feedback are welcome.
+Copy `frontend/.env.example` to `frontend/.env`:
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+### 2. Run with Docker Compose
+
+Build and start the services:
+
+```bash
+docker-compose up --build
+```
+
+This will start:
+*   **Postgres**: `localhost:5432`
+*   **Backend**: `localhost:8000`
+*   **Frontend**: `localhost:3000`
+
+## Manual Setup
+
+If you prefer to run services individually without Docker, please refer to the specific READMEs:
+
+*   [Backend Setup Guide](./zaban_backend/README.md)
+*   [Frontend Setup Guide](./frontend/README.md)
+
+## Key Features
+
+*   **Authentication**: Google SSO integration.
+*   **API Management**: Issue, rotate, and revoke API keys via the dashboard.
+*   **AI Services**:
+    *   **Text-to-Speech (TTS)**: Generate natural-sounding audio.
+    *   **Speech-to-Text (STT)**: Transcribe audio to text.
+    *   **Translation**: Translate text between supported languages.
+    *   **Transliteration**: Convert text between scripts.
+
+## License
+
+Private repository. All rights reserved.
