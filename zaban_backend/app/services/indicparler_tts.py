@@ -5,7 +5,9 @@ Provides Text-to-Speech using IndicParler model for Indian languages.
 """
 import os
 import io
-from typing import Optional
+import re
+import numpy as np
+from typing import Optional, List
 from dataclasses import dataclass
 
 
@@ -25,8 +27,9 @@ class IndicParlerTTSService:
     def __init__(self):
         self.model = None
         self.tokenizer = None
+        self.description_tokenizer = None
         self.device = None
-        self.sample_rate = 44100
+        self.sample_rate = None # Will be loaded from model config
         
     def _load_model(self):
         """Lazy load the IndicParler model"""
@@ -42,19 +45,26 @@ class IndicParlerTTSService:
             # Determine device
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             
-            # Load model (using the base Parler-TTS model for now)
-            # TODO: Replace with actual IndicParler model when available
-            model_name = os.getenv("INDICPARLER_MODEL", "parler-tts/parler-tts-mini-v1")
+            # Load model (using the AI4Bharat IndicParler model)
+            model_name = os.getenv("INDICPARLER_MODEL", "ai4bharat/indic-parler-tts")
             
             print(f"🔊 Loading TTS model: {model_name} on {self.device}...")
             
+            # Use FP16 for faster inference on GPU
+            torch_dtype = torch.float16 if self.device == "cuda" else torch.float32
+            
             self.model = ParlerTTSForConditionalGeneration.from_pretrained(
-                model_name
+                model_name,
+                torch_dtype=torch_dtype
             ).to(self.device)
             
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.description_tokenizer = AutoTokenizer.from_pretrained(self.model.config.text_encoder._name_or_path)
+
+            # Get sample rate from model config or default to 44100
+            self.sample_rate = getattr(self.model.config, "sampling_rate", 44100)
             
-            print(f"✅ TTS model loaded successfully")
+            print(f"✅ TTS model loaded successfully (dtype={torch_dtype}, rate={self.sample_rate}Hz)")
             
         except ImportError as e:
             raise ImportError(
@@ -62,6 +72,51 @@ class IndicParlerTTSService:
                 "Please install: pip install parler-tts torch transformers soundfile"
             ) from e
     
+    
+    
+    def _chunk_text(self, text: str, language: str = "en", max_chars: int = 300) -> List[str]:
+        """
+        Split text into chunks using IndicNLP for accurate sentence segmentation.
+        """
+        try:
+            from indicnlp.tokenize import sentence_tokenize
+            
+            # Use IndicNLP for splitting (robust for Indic languages)
+            # If language is 'en' or unsupported, it might differ, but generally safe for sentence splitting
+            sentences = sentence_tokenize.sentence_split(text, lang=language)
+        except Exception:
+            # Fallback to simple regex if IndicNLP fails or not available for language
+            # Split by common delimiters
+            delimiters = r'[.?!\u0964\u06D4\n]+'
+            parts = re.split(f'({delimiters})', text)
+            sentences = []
+            for i in range(0, len(parts) - 1, 2):
+                sentences.append((parts[i] + parts[i+1]).strip())
+            if len(parts) % 2 != 0 and parts[-1].strip():
+                sentences.append(parts[-1].strip())
+        
+        chunks = []
+        current_chunk = ""
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+                
+            # If adding this sentence exceeds max_chars, start new chunk
+            if len(current_chunk) + len(sentence) + 1 > max_chars:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                current_chunk = sentence
+            else:
+                current_chunk = f"{current_chunk} {sentence}" if current_chunk else sentence
+        
+        # Add remaining part
+        if current_chunk:
+             chunks.append(current_chunk.strip())
+             
+        return chunks
+
     async def synthesize(
         self,
         text: str,
@@ -100,38 +155,101 @@ class IndicParlerTTSService:
                 "eng": "en", "hin": "hi", "ben": "bn", "tel": "te", "tam": "ta",
                 "guj": "gu", "kan": "kn", "mal": "ml", "mar": "mr", "pan": "pa",
                 "ory": "or", "asm": "as", "urd": "ur", "npi": "ne", "san": "sa",
-                "kas": "ks", "gom": "kok", "mni": "mni", "snd": "sd", "sat": "sat"
+                "kas": "ks", "gom": "kok", "mni": "mni", "snd": "sd", "sat": "sat",
+                "doi": "doi", "brx": "brx", "mai": "mai"
             }
             language = lang_map.get(detected_lang[:3], "en")
         
+
+        # Map of language codes to full names for prompt generation
+        # Supported languages: as, bn, brx, doi, en, gu, hi, kn, ks, kok, mai, ml, mni, mr, ne, or, pa, sa, sat, sd, ta, te, ur
+        lang_code_to_name = {
+            "as": "Assamese", "asm": "Assamese",
+            "bn": "Bengali", "ben": "Bengali",
+            "brx": "Bodo",
+            "doi": "Dogri",
+            "en": "English", "eng": "English",
+            "gu": "Gujarati", "guj": "Gujarati",
+            "hi": "Hindi", "hin": "Hindi",
+            "kn": "Kannada", "kan": "Kannada",
+            "ks": "Kashmiri", "kas": "Kashmiri",
+            "kok": "Konkani", "gom": "Konkani",
+            "mai": "Maithili",
+            "ml": "Malayalam", "mal": "Malayalam",
+            "mni": "Manipuri",
+            "mr": "Marathi", "mar": "Marathi",
+            "ne": "Nepali", "npi": "Nepali",
+            "or": "Odia", "ory": "Odia",
+            "pa": "Punjabi", "pan": "Punjabi",
+            "sa": "Sanskrit", "san": "Sanskrit",
+            "sat": "Santali",
+            "sd": "Sindhi", "snd": "Sindhi",
+            "ta": "Tamil", "tam": "Tamil",
+            "te": "Telugu", "tel": "Telugu",
+            "ur": "Urdu", "urd": "Urdu"
+        }
+
+        # Determine full language name for the prompt
+        lang_name = lang_code_to_name.get(language.lower(), "Hindi") # Default to Hindi if unknown, or maybe English? Let's default to Hindi for Indic context or English. 
+        # Actually given the model is IndicParler, defaulting to a major Indic language might be safer if detected lang fails, but let's stick to the 'language' param.
+        # If language is passed as 'en', we get 'English'.
+        
         # Default voice description if not provided
         if not voice_description:
-            voice_description = "A clear and natural voice"
+            # Construct a standard prompt using the language name
+            # Format recommended by AI4Bharat: "A {gender} speaker delivering a slightly expressive speech in {Language} with a moderate speed and pitch."
+            # User requested "male" and "calm" default.
+            voice_description = f"A male speaker delivering a calm speech in {lang_name}"
         
-        # Generate speech
+        # Chunk the text to handle long inputs
+        chunks = self._chunk_text(text, language=language)
+        print(f"Processing {len(chunks)} chunks for TTS...")
+        
+        audio_segments = []
+        
         try:
-            input_ids = self.tokenizer(voice_description, return_tensors="pt").input_ids.to(self.device)
-            prompt_input_ids = self.tokenizer(text, return_tensors="pt").input_ids.to(self.device)
+            for i, chunk in enumerate(chunks):
+                if not chunk.strip():
+                    continue
+                    
+                input_ids = self.description_tokenizer(voice_description, return_tensors="pt").to(self.device)
+                prompt_input_ids = self.tokenizer(chunk, return_tensors="pt").to(self.device)
+                
+                with torch.no_grad():
+                    generation = self.model.generate(
+                        input_ids=input_ids.input_ids,
+                        attention_mask=input_ids.attention_mask,
+                        prompt_input_ids=prompt_input_ids.input_ids,
+                        prompt_attention_mask=prompt_input_ids.attention_mask,
+                    )
+                
+                # Convert to numpy
+                audio_arr = generation.cpu().float().numpy().squeeze()
+                audio_segments.append(audio_arr)
+                
+                # Add 0.5s silence between chunks to ensure natural separation
+                if i < len(chunks) - 1:
+                    silence_duration = 0.5
+                    silence_samples = int(silence_duration * self.sample_rate)
+                    silence_arr = np.zeros(silence_samples, dtype=audio_arr.dtype)
+                    audio_segments.append(silence_arr)
             
-            with torch.no_grad():
-                generation = self.model.generate(
-                    input_ids=input_ids,
-                    prompt_input_ids=prompt_input_ids,
-                )
-            
-            # Convert to numpy and then to WAV bytes
-            audio_arr = generation.cpu().numpy().squeeze()
+            # Concatenate all audio segments
+            if not audio_segments:
+                raise RuntimeError("No audio generated from text chunks")
+                
+            final_audio = np.concatenate(audio_segments)
             
             # Write to bytes buffer
             buffer = io.BytesIO()
-            sf.write(buffer, audio_arr, self.sample_rate, format='WAV')
+            sf.write(buffer, final_audio, self.sample_rate, format='WAV')
             audio_data = buffer.getvalue()
             
             return TTSResult(
                 audio_data=audio_data,
                 sample_rate=self.sample_rate,
                 language=language,
-                model="parler-tts-mini-v1",
+                model=os.getenv("INDICPARLER_MODEL", "ai4bharat/indic-parler-tts"),
                 speaker=speaker,
             )
             
