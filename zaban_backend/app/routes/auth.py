@@ -1,4 +1,6 @@
 import os
+import secrets
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, status, Header, Depends
 from ..schemas.auth import (
     SSOLogin,
@@ -7,14 +9,20 @@ from ..schemas.auth import (
     SignupRequest,
     SignupResponse,
     SigninRequest,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
 )
 from passlib.context import CryptContext
 from ..services.google_oauth2 import google_oauth2_client
+from ..services.email_service import get_email_service
 from ..core.security import create_access_token, verify_token, logout_token
 from ..core.api_key_auth import generate_api_key
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from ..models.user import User
+from ..models.password_reset_token import PasswordResetToken
 from ..db.database import get_db
 
 
@@ -143,3 +151,75 @@ def signin(payload: SigninRequest, db: Session = Depends(get_db)) -> TokenRespon
     return TokenResponse(access_token=token, token_type="bearer")
 
 
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> ForgotPasswordResponse:
+    email = payload.email.lower()
+    
+    # Find user by email
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    
+    # Always return success to prevent email enumeration
+    # Only proceed if user exists and has a password (not SSO-only)
+    if user is not None and getattr(user, "hashed_password", None):
+        # Generate secure token (32 bytes = 64 hex characters)
+        reset_token = secrets.token_urlsafe(32)
+        
+        # Set expiration (1 hour from now)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        
+        # Create password reset token record
+        reset_token_record = PasswordResetToken(
+            user_id=user.id,
+            token=reset_token,
+            expires_at=expires_at,
+        )
+        db.add(reset_token_record)
+        db.commit()
+        
+        # Send email
+        email_service = get_email_service()
+        email_service.send_password_reset_email(email, reset_token)
+    
+    # Always return success message (security best practice)
+    return ForgotPasswordResponse(
+        message="If an account exists with this email, a password reset link has been sent."
+    )
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)) -> ResetPasswordResponse:
+    # Find the reset token
+    token_record = db.execute(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.token == payload.token)
+        .where(PasswordResetToken.used_at.is_(None))
+    ).scalar_one_or_none()
+    
+    if token_record is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    # Check if token has expired
+    if token_record.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+    
+    # Get the user
+    user = db.execute(select(User).where(User.id == token_record.user_id)).scalar_one_or_none()
+    
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Hash the new password
+    try:
+        hashed = pwd_context.hash(payload.new_password)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Password hashing failed") from e
+    
+    # Update user's password
+    user.hashed_password = hashed
+    
+    # Mark token as used
+    token_record.used_at = datetime.now(timezone.utc)
+    
+    db.commit()
+    
+    return ResetPasswordResponse(message="Password has been reset successfully")

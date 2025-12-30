@@ -1,8 +1,22 @@
 // lib/api-service.ts
 
+import { clearAuthTokens } from "./auth";
 import { config } from "./config";
 
 const API_BASE_URL = `${config.api.baseUrl}/api/v1`;
+
+const redirectToLogin = (reason: "expired" | "missing") => {
+  clearAuthTokens();
+  if (typeof window !== "undefined") {
+    const search = reason ? `?reason=${reason}` : "";
+    window.location.href = `/login${search}`;
+  }
+  throw new Error(
+    reason === "expired"
+      ? "Session expired. Redirecting to login."
+      : "Not authenticated. Redirecting to login."
+  );
+};
 
 export interface APIKey {
   id: string;
@@ -17,9 +31,6 @@ interface APIKeysResponse {
   total: number;
 }
 
-/**
- * Get stored access token from localStorage
- */
 export const getAccessToken = (): string | null => {
   if (typeof window !== "undefined") {
     return localStorage.getItem("access_token");
@@ -37,7 +48,7 @@ const makeAuthenticatedRequest = async (
   const token = getAccessToken();
 
   if (!token) {
-    throw new Error("No access token found. Please log in.");
+    redirectToLogin("missing");
   }
 
   const url = `${API_BASE_URL}${endpoint}`;
@@ -54,9 +65,7 @@ const makeAuthenticatedRequest = async (
 
   if (!response.ok) {
     if (response.status === 401) {
-      throw new Error(
-        "Unauthorized: Invalid or expired token. Please log in again."
-      );
+      redirectToLogin("expired");
     }
     if (response.status === 404) {
       throw new Error("Resource not found.");
