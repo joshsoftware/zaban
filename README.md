@@ -15,6 +15,8 @@ Zaban is a SaaS platform offering AI-powered APIs for Text-to-Speech (TTS), Spee
 *   `frontend/`: The Next.js frontend dashboard.
 *   `docker-compose.yml`: Root Docker Compose configuration for orchestrating the services.
 
+**Note**: Do not add the `models/` folder to `.gitignore` as it contains actual model files (not AIML models), and these files should be tracked in version control.
+
 ## Quick Start (Docker)
 
 The easiest way to run the entire stack is using Docker Compose.

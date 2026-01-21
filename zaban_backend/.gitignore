@@ -183,7 +183,6 @@ logs/
 *.h5
 *.pkl
 *.pickle
-models/
 .cache/
 huggingface/
 transformers_cache/
