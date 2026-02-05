@@ -153,7 +153,9 @@ async def stt(
     lang: Optional[str] = Form(None),
     model: Optional[str] = Form("whisper"),
     format: Optional[str] = Form(None),
-    body: Optional[dict] = Body(None)
+    body: Optional[dict] = Body(None),
+    *,
+    translate_to_english: bool = False,
 ):
     """Speech-to-Text with model selection.
 
@@ -258,6 +260,7 @@ async def stt(
                         "language_probability": detected_prob,
                         "model": result.model,
                         "auto_detected": lang is None,
+                        "segments": getattr(result, "segments", None),
                     }
                 except (ImportError, RuntimeError, Exception) as e:
                     # Fallback to faster-whisper if Vistaar is not available
@@ -284,6 +287,7 @@ async def stt(
                             "language_probability": result.language_probability,
                             "model": f"faster-whisper-fallback-{result.model}",
                             "auto_detected": lang is None,
+                            "segments": result.segments,
                         }
                     else:
                         raise
@@ -294,7 +298,6 @@ async def stt(
                 if FASTER_WHISPER_AVAILABLE:
                     try:
                         fw_service = get_faster_whisper_stt_service()
-                        # Treat empty string as None to enable auto-detection
                         normalized_lang = None
                         if lang is not None and isinstance(lang, str) and lang.strip() != "":
                             normalized_lang = lang
@@ -304,6 +307,7 @@ async def stt(
                             auto_detect_language=(normalized_lang is None),
                             model_size=None,
                             file_suffix=incoming_suffix,
+                            translate_to_english=translate_to_english,
                         )
                         return {
                             "text": result.text,
@@ -311,6 +315,7 @@ async def stt(
                             "language_probability": result.language_probability,
                             "model": result.model,
                             "auto_detected": normalized_lang is None,
+                            "segments": result.segments,
                         }
                     except RuntimeError as e:
                         if "faster-whisper is not installed" in str(e):

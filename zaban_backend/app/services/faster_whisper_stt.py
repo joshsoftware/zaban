@@ -81,6 +81,7 @@ class FasterWhisperSttService:
         auto_detect_language: bool = True,
         model_size: Optional[str] = None,
         file_suffix: Optional[str] = None,
+        translate_to_english: bool = False,
     ) -> SttResult:
         """
         Transcribe audio using faster-whisper.
@@ -91,9 +92,10 @@ class FasterWhisperSttService:
             auto_detect_language: Enable auto-detection when language is None
             model_size: Override model size (or use preloaded)
             file_suffix: File extension hint for audio format
+            translate_to_english: If True, use task="translate" so output is in English (no separate translation model).
         
         Returns:
-            SttResult with transcription and metadata
+            SttResult with transcription and metadata (text in English when translate_to_english=True)
         """
         if not FASTER_WHISPER_AVAILABLE:
             raise RuntimeError("faster-whisper is not installed.")
@@ -121,13 +123,14 @@ class FasterWhisperSttService:
             # Transcribe with improved language detection
             # For auto-detection, faster-whisper does detection automatically
             # We use better parameters to improve detection accuracy
+            task = "translate" if translate_to_english else "transcribe"
             if language is None and auto_detect_language:
                 # Auto-detect: faster-whisper will detect language automatically
                 # Use beam_size=5 for better accuracy in both detection and transcription
                 segments, info = self.model.transcribe(
                     temp_file_path,
                     language=None,  # None triggers auto-detection
-                    task="transcribe",
+                    task=task,
                     vad_filter=True,
                     vad_parameters=dict(min_silence_duration_ms=500),
                     beam_size=5,  # Higher beam_size for better accuracy
@@ -139,7 +142,7 @@ class FasterWhisperSttService:
                 segments, info = self.model.transcribe(
                     temp_file_path,
                     language=language if language else None,
-                    task="transcribe",
+                    task=task,
                     vad_filter=True,
                     vad_parameters=dict(min_silence_duration_ms=500),
                     beam_size=5,
