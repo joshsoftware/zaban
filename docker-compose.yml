@@ -25,10 +25,10 @@ services:
       context: ./zaban_backend
       dockerfile: Dockerfile
     container_name: zaban-backend
-    env_file:
-      - ./zaban_backend/.env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/zaban_backend_development}
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY:-}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -45,11 +45,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_EXTERNAL_API_URL=${NEXT_PUBLIC_EXTERNAL_API_URL:-http://localhost:8000}
     container_name: zaban-frontend
-    env_file:
-      - ./frontend/.env
     environment:
-      NEXT_PUBLIC_EXTERNAL_API_URL: ${NEXT_PUBLIC_EXTERNAL_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_EXTERNAL_API_URL=${NEXT_PUBLIC_EXTERNAL_API_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
     depends_on:
