@@ -13,7 +13,16 @@ except ImportError:
     FASTER_WHISPER_AVAILABLE = False
     print("⚠️  openai-whisper not available; install with: pip install openai-whisper")
 
-from .constants import WHISPER_TO_BCP47, DEFAULT_TRANSLATE_PROMPT
+from .constants import (
+    WAV_FORMAT_NAME,
+    MP3_FORMAT_NAME,
+    WHISPER_TO_BCP47,
+    DEFAULT_TRANSLATE_PROMPT,
+    WHISPER_BEAM_SIZE,
+    WHISPER_BEST_OF,
+    AUDIO_FORMAT_CONFIG,
+    DEFAULT_AUDIO_SUFFIX,
+)
 
 
 @dataclass
@@ -92,7 +101,7 @@ class FasterWhisperSttService:
             audio_len = len(audio_data)
             print(f"[STT] Received audio: {audio_len} bytes, writing temp file...")
 
-            suffix = file_suffix or ".wav"
+            suffix = file_suffix or DEFAULT_AUDIO_SUFFIX
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, mode='wb') as f:
                 f.write(audio_data)
                 f.flush()
@@ -107,24 +116,56 @@ class FasterWhisperSttService:
             if file_size != len(audio_data):
                 raise ValueError(f"File size mismatch: expected {len(audio_data)} bytes, got {file_size}")
 
-            if suffix == ".wav" and len(audio_data) >= 12:
-                if audio_data[:4] == b"RIFF" and audio_data[8:12] == b"WAVE":
-                    pass
-                elif audio_data[:4] == b"fLaC":
-                    suffix = ".flac"
-                    new_path = temp_file_path.rsplit(".", 1)[0] + ".flac"
-                    os.rename(temp_file_path, new_path)
-                    temp_file_path = new_path
-                elif audio_data[:3] == b"ID3" or audio_data[:2] == b"\xff\xfb":
-                    suffix = ".mp3"
-                    new_path = temp_file_path.rsplit(".", 1)[0] + ".mp3"
-                    os.rename(temp_file_path, new_path)
-                    temp_file_path = new_path
-                elif audio_data[:4] == b"\x1a\x45\xdf\xa3":
-                    suffix = ".webm"
-                    new_path = temp_file_path.rsplit(".", 1)[0] + ".webm"
-                    os.rename(temp_file_path, new_path)
-                    temp_file_path = new_path
+            # Detect audio format from magic bytes if suffix is .wav
+            if suffix == DEFAULT_AUDIO_SUFFIX and len(audio_data) >= 12:
+                wav_config = AUDIO_FORMAT_CONFIG[WAV_FORMAT_NAME]
+                wav_magic = wav_config["magic"]
+                wav_check = wav_config["check"]
+                wav_check_offset = wav_config["check_offset"]
+                
+                # Check if it's actually WAV
+                is_wav = (
+                    audio_data[:len(wav_magic)] == wav_magic
+                    and wav_check
+                    and audio_data[wav_check_offset:wav_check_offset+len(wav_check)] == wav_check
+                )
+                
+                if not is_wav:
+                    # Try to detect actual format
+                    detected_format = None
+                    for format_name, config in AUDIO_FORMAT_CONFIG.items():
+                        if format_name == WAV_FORMAT_NAME:
+                            continue
+                        
+                        magic = config["magic"]
+                        check = config.get("check")
+                        check_offset = config.get("check_offset")
+                        
+                        # Check primary magic bytes
+                        if audio_data[:len(magic)] == magic:
+                            # If there's a check, verify it
+                            if check and check_offset:
+                                if audio_data[check_offset:check_offset+len(check)] == check:
+                                    detected_format = format_name
+                                    break
+                            else:
+                                detected_format = format_name
+                                break
+                        
+                        # Check alternative magic for MP3 (MPEG header)
+                        if format_name == MP3_FORMAT_NAME and "alt_magic" in config:
+                            alt_magic = config["alt_magic"]
+                            if audio_data[:len(alt_magic)] == alt_magic:
+                                detected_format = format_name
+                                break
+                    
+                    # Rename file if format detected
+                    if detected_format:
+                        new_extension = AUDIO_FORMAT_CONFIG[detected_format]["extension"]
+                        suffix = new_extension
+                        new_path = temp_file_path.rsplit(".", 1)[0] + new_extension
+                        os.rename(temp_file_path, new_path)
+                        temp_file_path = new_path
 
             task = "translate" if translate_to_english else "transcribe"
             # Optional prompt for task=translate to bias toward translation (not transliteration).
@@ -144,11 +185,11 @@ class FasterWhisperSttService:
             }
             # Add beam search options for translation to improve quality
             if translate_to_english:
-                transcribe_kw["beam_size"] = 5
-                transcribe_kw["best_of"] = 5
+                transcribe_kw["beam_size"] = WHISPER_BEAM_SIZE
+                transcribe_kw["best_of"] = WHISPER_BEST_OF
                 if translate_prompt:
                     transcribe_kw["prompt"] = translate_prompt
-                print(f"[STT] Starting translation (task={task}, lang={lang_arg or 'auto-detect'}, beam_size=5, best_of=5, prompt={'set' if translate_prompt else 'none'})...")
+                print(f"[STT] Starting translation (task={task}, lang={lang_arg or 'auto-detect'}, beam_size={WHISPER_BEAM_SIZE}, best_of={WHISPER_BEST_OF}, prompt={'set' if translate_prompt else 'none'})...")
             else:
                 print(f"[STT] Starting transcription (task={task}, lang={lang_arg or 'auto-detect'})...")
             try:
