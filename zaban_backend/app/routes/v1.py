@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from ..services.ai4bharat import Ai4BharatClient
 from ..services.language_detection import get_language_detector
+from ..services.constants import WHISPER_TO_BCP47
 
 
 router = APIRouter()
@@ -166,13 +167,17 @@ async def stt(
     - format: Output format (optional)
 
     Models:
-    - whisper: faster-whisper (4-5x faster than OpenAI Whisper, supports 100+ languages)
+    - whisper: OpenAI Whisper (supports 100+ languages)
     - ai4bharat: Vistaar IndicWhisper (best WER for Indian languages: hi, mr, ta, te, bn, gu, kn, ml, pa, or, sa, ur)
     
     Behavior:
-    - If lang not provided: faster-whisper auto-detects language
-    - If model=ai4bharat: Uses faster-whisper for detection, then Vistaar IndicWhisper for transcription
-    - If model=whisper: Uses faster-whisper (best for all languages)
+    - If lang not provided: Whisper auto-detects language
+    - If model=ai4bharat: Uses Whisper for detection, then Vistaar IndicWhisper for transcription
+    - If model=whisper: Uses OpenAI Whisper (best for all languages)
+
+    Note: Whisper often confuses closely related languages (e.g. Hindi vs Marathi).
+    If you know the source language, pass lang (e.g. lang=mr for Marathi, lang=hi for Hindi)
+    for correct detection and better translation.
     """
     try:
         # Prefer multipart upload
@@ -198,12 +203,12 @@ async def stt(
                 else:
                     incoming_suffix = '.webm'
             
-            # Model selection: whisper (faster-whisper) or ai4bharat (vistaar-indicwhisper)
+            # Model selection: whisper (openai-whisper) or ai4bharat (vistaar-indicwhisper)
             model_choice = (model or "whisper").lower()
             
             if model_choice == "ai4bharat":
                 # Use Vistaar IndicWhisper (best WER for Indian languages)
-                # Fallback to faster-whisper if Vistaar is not available
+                # Fallback to Whisper if Vistaar is not available
                 from ..services.faster_whisper_stt import get_faster_whisper_stt_service, FASTER_WHISPER_AVAILABLE
                 
                 detected_lang = lang
@@ -223,7 +228,7 @@ async def stt(
                 try:
                     from ..services.vistaar_indicwhisper_stt import get_vistaar_indicwhisper_stt_service
                     
-                    # Step 1: Detect language if not provided (using faster-whisper)
+                    # Step 1: Detect language if not provided (using Whisper)
                     if not detected_lang:
                         if FASTER_WHISPER_AVAILABLE:
                             fw_service = get_faster_whisper_stt_service()
@@ -243,7 +248,7 @@ async def stt(
                         else:
                             raise HTTPException(
                                 status_code=400,
-                                detail="Language detection requires faster-whisper. Please provide 'lang' parameter or install faster-whisper."
+                                detail="Language detection requires Whisper. Please provide 'lang' parameter or install openai-whisper."
                             )
                     
                     # Step 2: Transcribe with Vistaar IndicWhisper
@@ -254,25 +259,27 @@ async def stt(
                         language=detected_lang,
                         file_suffix=incoming_suffix,
                     )
+                    language = result.language
+                    print(f"[STT] stt_model={result.model} language={language}")
                     return {
                         "text": result.text,
-                        "language": result.language,
+                        "language": language,
                         "language_probability": detected_prob,
                         "model": result.model,
                         "auto_detected": lang is None,
                         "segments": getattr(result, "segments", None),
                     }
                 except (ImportError, RuntimeError, Exception) as e:
-                    # Fallback to faster-whisper if Vistaar is not available
+                    # Fallback to Whisper if Vistaar is not available
                     error_msg = str(e)
                     if "transformers" in error_msg or "Vistaar" in error_msg or "not available" in error_msg.lower():
-                        print(f"⚠️  Vistaar IndicWhisper not available ({error_msg}), falling back to faster-whisper")
+                        print(f"⚠️  Vistaar IndicWhisper not available ({error_msg}), falling back to Whisper")
                         if not FASTER_WHISPER_AVAILABLE:
                             raise HTTPException(
                                 status_code=500,
-                                detail="Vistaar IndicWhisper is not available and faster-whisper is not installed. Please install faster-whisper: pip install faster-whisper ctranslate2"
+                                detail="Vistaar IndicWhisper is not available and Whisper is not installed. Please install openai-whisper."
                             )
-                        # Use faster-whisper as fallback
+                        # Use Whisper as fallback
                         fw_service = get_faster_whisper_stt_service()
                         result = await fw_service.transcribe(
                             audio_bytes,
@@ -281,26 +288,30 @@ async def stt(
                             model_size=None,
                             file_suffix=incoming_suffix,
                         )
+                        language = result.language
+                        print(f"[STT] stt_model=whisper-fallback-{result.model} language={language}")
                         return {
                             "text": result.text,
-                            "language": result.language,
+                            "language": language,
                             "language_probability": result.language_probability,
-                            "model": f"faster-whisper-fallback-{result.model}",
+                            "model": f"whisper-fallback-{result.model}",
                             "auto_detected": lang is None,
                             "segments": result.segments,
                         }
                     else:
                         raise
             else:
-                # Use faster-whisper (supports 100+ languages), fallback to openai-whisper if needed
+                # Use Whisper STT (openai-whisper)
                 from ..services.faster_whisper_stt import get_faster_whisper_stt_service, FASTER_WHISPER_AVAILABLE
-                
+
+                print(f"[STT] Request received: audio_size={len(audio_bytes)} bytes, lang={lang}")
                 if FASTER_WHISPER_AVAILABLE:
                     try:
                         fw_service = get_faster_whisper_stt_service()
                         normalized_lang = None
                         if lang is not None and isinstance(lang, str) and lang.strip() != "":
                             normalized_lang = lang
+                        print(f"[STT] Calling transcribe...")
                         result = await fw_service.transcribe(
                             audio_bytes,
                             language=normalized_lang,
@@ -309,9 +320,12 @@ async def stt(
                             file_suffix=incoming_suffix,
                             translate_to_english=translate_to_english,
                         )
+                        language = result.language
+                        stt_model = getattr(result, "model", "unknown")
+                        print(f"[STT] stt_model={stt_model} language={language}")
                         return {
                             "text": result.text,
-                            "language": result.language,
+                            "language": language,
                             "language_probability": result.language_probability,
                             "model": result.model,
                             "auto_detected": normalized_lang is None,
@@ -319,11 +333,11 @@ async def stt(
                         }
                     except RuntimeError as e:
                         if "faster-whisper is not installed" in str(e):
-                            print("⚠️  faster-whisper runtime error, falling back to openai-whisper")
+                            print("⚠️  Whisper runtime error, falling back to openai-whisper")
                         else:
                             raise
                 
-                # Fallback to openai-whisper if faster-whisper is not available
+                # Fallback to openai-whisper if primary STT is not available
                 try:
                     import whisper
                     import tempfile
@@ -331,13 +345,13 @@ async def stt(
                     # Cache whisper model to avoid reloading on every request
                     model_cache_key = "whisper_model_cache"
                     if model_cache_key not in globals():
-                        model_name = os.getenv("WHISPER_MODEL", "base")
+                        model_name = os.getenv("WHISPER_MODEL", "medium")
                         print(f"📥 Loading openai-whisper model '{model_name}' (first time, may take a moment)...")
                         globals()[model_cache_key] = whisper.load_model(model_name)
                         print(f"✅ openai-whisper model '{model_name}' loaded successfully")
                     
                     whisper_model = globals()[model_cache_key]
-                    model_name = os.getenv("WHISPER_MODEL", "base")
+                    model_name = os.getenv("WHISPER_MODEL", "medium")
                     
                     # Write audio to temp file
                     suffix = incoming_suffix or ".wav"
@@ -358,17 +372,13 @@ async def stt(
                         detected_prob = None
                         
                         # Map to BCP-47
-                        lang_map = {
-                            'en': 'eng_Latn', 'hi': 'hin_Deva', 'bn': 'ben_Beng', 'ta': 'tam_Taml',
-                            'te': 'tel_Telu', 'gu': 'guj_Gujr', 'kn': 'kan_Knda', 'ml': 'mal_Mlym',
-                            'mr': 'mar_Deva', 'pa': 'pan_Guru', 'or': 'ory_Orya', 'as': 'asm_Beng',
-                            'ur': 'urd_Arab', 'ne': 'nep_Deva', 'si': 'sin_Sinh',
-                        }
-                        bcp47_lang = lang_map.get(detected_lang, f"{detected_lang}_Latn")
-                        
+                        bcp47_lang = WHISPER_TO_BCP47.get(detected_lang, f"{detected_lang}_Latn")
+                        text_stripped = result["text"].strip()
+                        language = bcp47_lang
+                        print(f"[STT] stt_model=openai-whisper-{model_name} language={language}")
                         return {
-                            "text": result["text"].strip(),
-                            "language": bcp47_lang,
+                            "text": text_stripped,
+                            "language": language,
                             "language_probability": detected_prob,
                             "model": f"openai-whisper-{model_name}",
                             "auto_detected": lang is None,
@@ -382,7 +392,7 @@ async def stt(
                 except ImportError:
                     raise HTTPException(
                         status_code=500,
-                        detail="Neither faster-whisper nor openai-whisper is installed. Please install one: pip install faster-whisper ctranslate2 OR pip install openai-whisper"
+                        detail="openai-whisper is not installed. Please install: pip install openai-whisper"
                     )
                 except Exception as e:
                     raise HTTPException(status_code=400, detail=f"Whisper transcription failed: {str(e)}")
@@ -447,7 +457,7 @@ async def stt(
                 if not audio_bytes:
                     raise HTTPException(status_code=400, detail="Audio bytes are empty")
 
-                # Use faster-whisper for transcription
+                # Use Whisper for transcription
                 from ..services.faster_whisper_stt import get_faster_whisper_stt_service
                 
                 fw_service = get_faster_whisper_stt_service()

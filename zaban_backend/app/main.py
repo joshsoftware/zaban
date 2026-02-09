@@ -39,19 +39,19 @@ async def startup_event():
     """Load environment variables and preload models at startup."""
     load_dotenv(override=True)
     
-    # Preload faster-whisper model once at startup to avoid per-request loads
+    # Preload openai-whisper STT at startup
     try:
-        if os.getenv("PRELOAD_FASTER_WHISPER", "true").lower() == "true":
+        if os.getenv("PRELOAD_WHISPER", "true").lower() == "true":
             from .services.faster_whisper_stt import get_faster_whisper_stt_service
-            model_name = os.getenv("WHISPER_MODEL", "large-v3")
-            print(f"🚀 Preloading faster-whisper model '{model_name}' at startup...")
+            model_name = os.getenv("WHISPER_MODEL", "medium")
+            print(f"🚀 Preloading openai-whisper model '{model_name}' at startup...")
             service = get_faster_whisper_stt_service()
             service.load_model(model_name)
-            print(f"✅ faster-whisper model '{model_name}' preloaded successfully. Ready for all languages.")
+            print(f"✅ openai-whisper preloaded. Ready for all languages.")
         else:
-            print("ℹ️  faster-whisper preload disabled (PRELOAD_FASTER_WHISPER=false)")
+            print("ℹ️  openai-whisper preload disabled (PRELOAD_WHISPER=false)")
     except Exception as e:
-        print(f"⚠️  faster-whisper preload failed: {e}")
+        print(f"⚠️  openai-whisper preload failed: {e}")
         print("   Model will be loaded on first request (slower)")
 
 

@@ -77,7 +77,7 @@ The `docker-compose.yml` includes default values for most settings. You can over
 
 - `ALLOWED_SSO_DOMAINS` - Comma-separated list of allowed email domains
 - `INDICTRANS2_AUTO_LOAD` - Set to `true` to preload models at startup
-- `PRELOAD_FASTER_WHISPER` - Set to `true` to preload Whisper model
+- `PRELOAD_WHISPER` - Set to `true` to preload Whisper model
 - AI4Bharat API keys and URLs (if using external APIs)
 
 ## Model Downloads
