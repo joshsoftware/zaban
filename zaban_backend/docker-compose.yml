@@ -58,8 +58,8 @@ services:
       AI4B_OPEN_SPEECH_API_KEY: ${AI4B_OPEN_SPEECH_API_KEY:-}
       
       # Whisper STT
-      PRELOAD_FASTER_WHISPER: ${PRELOAD_FASTER_WHISPER:-false}
-      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      PRELOAD_WHISPER: ${PRELOAD_WHISPER:-false}
+      WHISPER_MODEL: ${WHISPER_MODEL:-medium}
     volumes:
       # Persist model cache between container restarts
       - model_cache:/root/.cache/zaban/models
