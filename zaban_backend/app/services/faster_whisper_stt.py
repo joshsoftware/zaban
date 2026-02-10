@@ -13,6 +13,12 @@ except ImportError:
     FASTER_WHISPER_AVAILABLE = False
     print("⚠️  openai-whisper not available; install with: pip install openai-whisper")
 
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+
 from .constants import (
     WAV_FORMAT_NAME,
     MP3_FORMAT_NAME,
@@ -43,7 +49,13 @@ class FasterWhisperSttService:
         self.model = None
         self.model_name = None
         self.model_loaded = False
-        self.device = "cuda" if os.getenv("USE_CUDA", "false").lower() == "true" else "cpu"
+        # Prefer CUDA when available, then Metal (MPS) on macOS, otherwise CPU.
+        if TORCH_AVAILABLE and torch.cuda.is_available():
+            self.device = "cuda"
+        elif TORCH_AVAILABLE and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
 
         if not FASTER_WHISPER_AVAILABLE:
             print("⚠️  openai-whisper not installed. Install with: pip install openai-whisper")
