@@ -77,13 +77,9 @@ async def enroll_voiceprint(
         db.query(Voiceprint).filter(Voiceprint.user_id == user_id).update({"is_active": False})
         
         # Retrieve vector ID - verifier.enroll_user doesn't return it currently, 
-        # but we can generate it the same way as verifier does or modify verifier.
-        # Actually, verifier.enroll_user uses a deterministic point_id from user_id.
-        # But we need a UUID for qdrant_vector_id in our DB.
-        # Let's use a random UUID and fix the verifier to use it or just store the mapping.
         
         # TODO: Refactor verifier to accept/return vector_id if needed.
-        # For now, let's use a placeholder UUID since verifier uses user_id as key in Qdrant.
+        # using placeholder UUID since verifier uses user_id as key in Qdrant.
         import uuid
         vector_id = uuid.uuid4() 
         
@@ -240,9 +236,7 @@ async def delete_voiceprint(
     if not vp:
         raise HTTPException(status_code=404, detail="Voiceprint not found")
 
-    # Delete from Qdrant if it's the only one or if we want to clean up
-    # Note: verifier.delete_user uses user_id. If multiple VPs exist, 
-    # we might need to be careful. For now, we follow the simpler logic.
+    # Note: verifier.delete_user uses user_id. If multiple VPs exist
     user_id = str(vp.user_id)
     
     db.delete(vp)
