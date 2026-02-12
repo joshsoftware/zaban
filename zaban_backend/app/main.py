@@ -54,6 +54,20 @@ async def startup_event():
         print(f"⚠️  openai-whisper preload failed: {e}")
         print("   Model will be loaded on first request (slower)")
 
+    # Initialize voiceprint verifier
+    from .services.voiceprint.config import voiceprint_settings
+    if voiceprint_settings.VOICEPRINT_ENABLED:
+        try:
+            from .services.voiceprint.verifier import VoiceVerifierECAPA
+            print("🚀 Initializing voiceprint verifier...")
+            app.state.voice_verifier = VoiceVerifierECAPA()
+            print("✅ Voiceprint verifier initialized.")
+        except Exception as e:
+            print(f"⚠️  Voiceprint verifier initialization failed: {e}")
+            app.state.voice_verifier = None
+    else:
+        print("ℹ️  Voiceprint service disabled (VOICEPRINT_ENABLED=false)")
+
 
 @app.get("/up")
 async def up():
