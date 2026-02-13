@@ -61,15 +61,24 @@ class VoiceVerifierECAPA:
         # Initialize Qdrant client
         qdrant_host = qdrant_host or settings.QDRANT_HOST
         qdrant_port = qdrant_port or settings.QDRANT_PORT
+        print(f"📡 Connecting to Qdrant at {qdrant_host}:{qdrant_port}...")
         self.qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port)
         
         # Ensure collections exist
-        self._init_collections()
+        try:
+            self._init_collections()
+        except Exception as e:
+            print(f"⚠️  Failed to initialize Qdrant collections: {e}")
+            pass
 
     def _init_collections(self) -> None:
         """Initialize Qdrant collections for enrolled users and cohort."""
         for name in [settings.ENROLLED_COLLECTION, settings.COHORT_COLLECTION]:
-            ensure_collection_exists(self.qdrant_client, name, self.embedding_dim)
+            try:
+                ensure_collection_exists(self.qdrant_client, name, self.embedding_dim)
+            except Exception as e:
+                print(f"⚠️  Error ensuring collection '{name}' exists: {e}")
+                raise
 
     def extract_embedding(self, audio_path: Union[str, np.ndarray, dict]) -> np.ndarray:
         """

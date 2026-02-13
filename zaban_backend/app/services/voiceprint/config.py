@@ -6,7 +6,7 @@ class VoiceprintSettings(BaseSettings):
     """Voiceprint specific configuration."""
     
     # Qdrant
-    QDRANT_HOST: str = "localhost"
+    QDRANT_HOST: str = "qdrant"
     QDRANT_PORT: int = 6333
     
     # Voiceprint Collections
@@ -29,7 +29,7 @@ class VoiceprintSettings(BaseSettings):
     XOR_AUDIO_KEY: str = "voiceprint_xor_key_v1"
     
     # Feature Toggle
-    VOICEPRINT_ENABLED: bool = False
+    VOICEPRINT_ENABLED: bool = True
     
     model_config = SettingsConfigDict(
         env_file=".env",
