@@ -36,6 +36,10 @@ services:
       # Hugging Face
       HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
 
+      # NVIDIA GPU
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+
       # Google OAuth (update with your credentials)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-your-client-id.apps.googleusercontent.com}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-your-client-secret}
@@ -73,6 +77,14 @@ services:
       - fasttext_cache:/root/.cache/zaban/models
       - huggingface_cache:/app/.cache/huggingface
       - whisper_cache:/root/.cache/whisper
+    # GPU support (requires nvidia-docker2 / nvidia-container-toolkit)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       db:
         condition: service_healthy

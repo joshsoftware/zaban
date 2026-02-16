@@ -1,14 +1,16 @@
+version: "3.9"
+
 services:
   # PostgreSQL Database (for development only)
   postgres:
     image: postgres:14-alpine
-    container_name: zaban-postgres
+    container_name: zaban2-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: zaban_backend_development
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,8 +20,9 @@ services:
       retries: 5
     networks:
       - zaban-network
+    restart: unless-stopped
 
-  # Backend API
+  # Backend API (GPU enabled)
   backend:
     build:
       context: ./zaban_backend
@@ -32,6 +35,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/zaban_backend_development}
       HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
       - "8000:8000"
     depends_on:
@@ -45,6 +50,13 @@ services:
     networks:
       - zaban-network
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   # Frontend
   frontend:
