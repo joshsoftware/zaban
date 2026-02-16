@@ -24,18 +24,24 @@ services:
     build:
       context: ./zaban_backend
       dockerfile: Dockerfile
+      args:
+        HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
     container_name: zaban-backend
     env_file:
       - ./zaban_backend/.env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/zaban_backend_development}
+      HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - ml_models_cache:/app/.cache/huggingface
+      # Persist ML model caches between container restarts
+      - huggingface_cache:/app/.cache/huggingface
+      - whisper_cache:/root/.cache/whisper
+      - fasttext_cache:/root/.cache/zaban/models
     networks:
       - zaban-network
     restart: unless-stopped
@@ -60,7 +66,9 @@ services:
 
 volumes:
   postgres_data:
-  ml_models_cache:
+  huggingface_cache:
+  whisper_cache:
+  fasttext_cache:
 
 networks:
   zaban-network:

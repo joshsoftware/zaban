@@ -24,30 +24,38 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
     container_name: zaban-backend
     ports:
       - "8000:8000"
     environment:
       # Database
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/zaban_postgres
-      
+
+      # Hugging Face
+      HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
+
       # Google OAuth (update with your credentials)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-your-client-id.apps.googleusercontent.com}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-your-client-secret}
       ALLOWED_SSO_DOMAINS: ${ALLOWED_SSO_DOMAINS:-joshsoftware.com}
-      
+
       # Auth
       JWT_SECRET: ${JWT_SECRET:-change-this-to-a-random-secret-string}
-      
+
       # IndicTrans2
       USE_LOCAL_INDICTRANS2: ${USE_LOCAL_INDICTRANS2:-true}
       INDICTRANS2_AUTO_LOAD: ${INDICTRANS2_AUTO_LOAD:-false}
       INDICTRANS2_EN_INDIC_MODEL: ${INDICTRANS2_EN_INDIC_MODEL:-ai4bharat/indictrans2-en-indic-dist-200M}
       INDICTRANS2_INDIC_EN_MODEL: ${INDICTRANS2_INDIC_EN_MODEL:-ai4bharat/indictrans2-indic-en-dist-200M}
-      
+
+      # IndicParler TTS
+      INDICPARLER_MODEL: ${INDICPARLER_MODEL:-ai4bharat/indic-parler-tts}
+
       # FastText
       FASTTEXT_CACHE_DIR: /root/.cache/zaban/models
-      
+
       # AI4Bharat APIs (optional)
       AI4B_TTS_URL: ${AI4B_TTS_URL:-}
       AI4B_STT_URL: ${AI4B_STT_URL:-}
@@ -56,14 +64,15 @@ services:
       AI4B_TRANSLATE_URL: ${AI4B_TRANSLATE_URL:-}
       AI4B_API_KEY: ${AI4B_API_KEY:-}
       AI4B_OPEN_SPEECH_API_KEY: ${AI4B_OPEN_SPEECH_API_KEY:-}
-      
+
       # Whisper STT
       PRELOAD_WHISPER: ${PRELOAD_WHISPER:-false}
       WHISPER_MODEL: ${WHISPER_MODEL:-medium}
     volumes:
       # Persist model cache between container restarts
-      - model_cache:/root/.cache/zaban/models
-      - huggingface_cache:/root/.cache/huggingface
+      - fasttext_cache:/root/.cache/zaban/models
+      - huggingface_cache:/app/.cache/huggingface
+      - whisper_cache:/root/.cache/whisper
     depends_on:
       db:
         condition: service_healthy
@@ -71,6 +80,7 @@ services:
 
 volumes:
   postgres_data:
-  model_cache:
+  fasttext_cache:
   huggingface_cache:
+  whisper_cache:
 

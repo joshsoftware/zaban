@@ -30,11 +30,27 @@ RUN uv venv && \
 
 # Create directory for ML models cache
 RUN mkdir -p /app/.cache/huggingface
+RUN mkdir -p /root/.cache/zaban/models
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+# HuggingFace model cache (IndicTrans2, IndicParler TTS)
 ENV TRANSFORMERS_CACHE=/app/.cache/huggingface
 ENV HF_HOME=/app/.cache/huggingface
+# Whisper model cache
+ENV XDG_CACHE_HOME=/root/.cache
+# FastText model cache
+ENV FASTTEXT_CACHE_DIR=/root/.cache/zaban/models
+
+# Build argument for Hugging Face token (for gated models)
+ARG HUGGING_FACE_TOKEN
+ENV HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
+
+# Pre-download ML models during build (optional but recommended for production)
+# Models: IndicTrans2, IndicParler TTS, Whisper, FastText
+# Note: IndicParler TTS requires HF token and access approval
+RUN . .venv/bin/activate && \
+    python scripts/download_models.py || echo "⚠️  Some models failed to download, will retry at runtime"
 
 # Expose port 8000
 EXPOSE 8000
