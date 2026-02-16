@@ -8,8 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, R
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.models.user import User
-from app.models.voiceprint import Voiceprint, VerificationAttempt
+from app.models.voiceprint import Voiceprint, VerificationAttempt, VoiceprintUser
 from app.schemas.voiceprint import (
     EnrollmentResponse,
     VerificationResponse,
@@ -40,15 +39,22 @@ def get_verifier(request: Request):
 @router.post("/enroll/{user_id}", response_model=EnrollmentResponse)
 async def enroll_voiceprint(
     user_id: UUID,
+    device_id: Optional[str] = Form(None),
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
     verifier=Depends(get_verifier)
 ):
     """Enroll a user's voiceprint with multiple audio samples."""
-    # Check if user exists in Zaban
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Check if voiceprint user exists, if not create one (if strict or device_id provided)
+    vp_user = db.query(VoiceprintUser).filter(VoiceprintUser.user_id == user_id).first()
+    if not vp_user:
+        if settings.STRICT_VOICEPRINT_USER_CHECK or device_id:
+            vp_user = VoiceprintUser(user_id=user_id, device_id=device_id)
+            db.add(vp_user)
+            db.commit()
+    elif device_id and vp_user.device_id != device_id:
+        vp_user.device_id = device_id
+        db.commit()
 
     if len(files) < settings.MIN_ENROLLMENT_SAMPLES:
         raise HTTPException(
@@ -96,6 +102,7 @@ async def enroll_voiceprint(
         return EnrollmentResponse(
             status="success",
             user_id=user_id,
+            device_id=vp_user.device_id if vp_user else None,
             message="Voiceprint enrolled successfully",
             num_samples=len(files)
         )
@@ -115,10 +122,11 @@ async def verify_voiceprint(
     verifier=Depends(get_verifier)
 ):
     """Verify a user's voice against their enrolled voiceprint."""
-    # Check if user exists
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # Check if user exists (if strict check is enabled)
+    if settings.STRICT_VOICEPRINT_USER_CHECK:
+        vp_user = db.query(VoiceprintUser).filter(VoiceprintUser.user_id == user_id).first()
+        if not vp_user:
+            raise HTTPException(status_code=404, detail="Voiceprint user not found")
 
     # Get active voiceprint
     voiceprint = db.query(Voiceprint).filter(

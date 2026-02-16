@@ -30,6 +30,7 @@ class VoiceprintSettings(BaseSettings):
     
     # Feature Toggle
     VOICEPRINT_ENABLED: bool = True
+    STRICT_VOICEPRINT_USER_CHECK: bool = False
     
     model_config = SettingsConfigDict(
         env_file=".env",

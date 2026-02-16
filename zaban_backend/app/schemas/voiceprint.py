@@ -12,6 +12,7 @@ class EnrollmentResponse(BaseModel):
     """Response model for enrollment endpoint."""
     status: str = Field(..., description="Status of the enrollment operation")
     user_id: UUID = Field(..., description="User unique identifier")
+    device_id: Optional[str] = Field(None, description="Device unique identifier")
     message: str = Field(..., description="Human-readable message")
     num_samples: Optional[int] = Field(None, description="Number of audio samples used")
 
@@ -19,6 +20,7 @@ class EnrollmentResponse(BaseModel):
 class UserInfo(BaseModel):
     """Simplified user info for lists."""
     user_id: str
+    device_id: Optional[str] = None
     num_samples: Optional[int] = None
 
 
