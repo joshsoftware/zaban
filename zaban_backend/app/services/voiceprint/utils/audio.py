@@ -1,12 +1,82 @@
 """Audio loading and processing utilities."""
 
 import io
+import logging
+import os
+import subprocess
+import tempfile
 from typing import Tuple, Union
 
 import numpy as np
 import soundfile as sf
 import torch
 import torchaudio
+
+logger = logging.getLogger(__name__)
+
+
+def convert_to_wav(input_path: str) -> str:
+    """
+    Convert any audio file to standard PCM WAV using ffmpeg.
+
+    Browsers typically record audio in WebM/Opus format, even if the file
+    is saved with a .wav extension. This function detects the actual format
+    and converts to 16kHz mono PCM WAV for reliable processing.
+
+    Args:
+        input_path: Path to the input audio file.
+
+    Returns:
+        Path to the converted WAV file (may be same as input if already valid WAV).
+    """
+    # First, try reading directly with soundfile — if it works, no conversion needed
+    try:
+        sf.info(input_path)
+        return input_path
+    except Exception:
+        pass  # Not a format soundfile can handle, needs conversion
+
+    logger.info(f"Audio file '{input_path}' is not standard WAV, converting with ffmpeg...")
+
+    # Create a temp output file for the converted audio
+    fd, output_path = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y",           # overwrite output
+                "-i", input_path,         # input file
+                "-ar", "16000",           # resample to 16kHz
+                "-ac", "1",               # mono
+                "-sample_fmt", "s16",     # 16-bit PCM
+                "-f", "wav",              # force WAV output
+                output_path
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode != 0:
+            # Clean up on failure
+            if os.path.exists(output_path):
+                os.remove(output_path)
+            raise RuntimeError(
+                f"ffmpeg conversion failed (exit code {result.returncode}): {result.stderr}"
+            )
+        logger.info(f"Successfully converted '{input_path}' to WAV at '{output_path}'")
+        return output_path
+    except FileNotFoundError:
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        raise RuntimeError(
+            "ffmpeg is not installed or not in PATH. "
+            "ffmpeg is required to convert browser-recorded audio (WebM/Opus) to WAV."
+        )
+    except subprocess.TimeoutExpired:
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        raise RuntimeError("ffmpeg conversion timed out after 30 seconds.")
 
 
 def decode_audio_from_bytes(
@@ -90,10 +160,11 @@ def load_audio(audio_path: Union[str, np.ndarray, dict]) -> np.ndarray:
 
 def _load_audio_file(path: str) -> Tuple[np.ndarray, int]:
     """
-    Load audio file with fallback to torchaudio for WebM/Opus and other formats.
+    Load audio file, converting to WAV via ffmpeg if needed.
     
-    soundfile doesn't support WebM/Opus (common browser recording format),
-    so we fall back to torchaudio which uses ffmpeg backend for broader format support.
+    Browsers typically record in WebM/Opus format even when the file extension
+    is .wav. This function uses ffmpeg to convert to standard PCM WAV first,
+    then reads with soundfile.
     
     Args:
         path: Path to the audio file
@@ -101,26 +172,24 @@ def _load_audio_file(path: str) -> Tuple[np.ndarray, int]:
     Returns:
         Tuple of (audio_array, sampling_rate)
     """
-    # Try soundfile first (fast, handles WAV/FLAC/OGG well)
+    converted_path = None
     try:
-        arr, sr = sf.read(path)
+        # Convert to WAV if needed (handles WebM/Opus from browser recordings)
+        wav_path = convert_to_wav(path)
+        if wav_path != path:
+            converted_path = wav_path  # Track for cleanup
+
+        arr, sr = sf.read(wav_path)
         return arr, sr
-    except Exception as sf_error:
-        # Fallback to torchaudio for WebM/Opus and other formats
-        try:
-            waveform, sr = torchaudio.load(path)
-            # Convert to numpy (torchaudio returns [channels, samples])
-            arr = waveform.numpy()
-            # If stereo/multichannel, transpose to [samples, channels] for consistency
-            if arr.ndim == 2:
-                arr = arr.T if arr.shape[0] <= 2 else arr  # Transpose if channels first
-            return arr, sr
-        except Exception as ta_error:
-            # If both fail, raise with helpful error message
-            raise RuntimeError(
-                f"Failed to load audio from '{path}'. "
-                f"soundfile error: {sf_error}. "
-                f"torchaudio error: {ta_error}. "
-                f"Ensure the file is a valid audio format (WAV, FLAC, OGG, WebM, MP3, etc.) "
-                f"and that ffmpeg is installed for WebM/Opus support."
-            )
+    except RuntimeError:
+        raise  # Re-raise ffmpeg conversion errors as-is
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to load audio from '{path}': {e}. "
+            f"Ensure the file is a valid audio format (WAV, FLAC, OGG, WebM, MP3, etc.) "
+            f"and that ffmpeg is installed for WebM/Opus support."
+        )
+    finally:
+        # Clean up temp converted file
+        if converted_path and os.path.exists(converted_path):
+            os.remove(converted_path)
