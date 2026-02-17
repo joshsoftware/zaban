@@ -38,7 +38,7 @@ def get_verifier(request: Request):
 
 @router.post("/enroll/{user_id}", response_model=EnrollmentResponse)
 async def enroll_voiceprint(
-    user_id: UUID,
+    user_id: str,
     device_id: Optional[str] = Form(None),
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
@@ -46,10 +46,10 @@ async def enroll_voiceprint(
 ):
     """Enroll a user's voiceprint with multiple audio samples."""
     # Check if voiceprint user exists, if not create one (if strict or device_id provided)
-    vp_user = db.query(VoiceprintUser).filter(VoiceprintUser.user_id == user_id).first()
+    vp_user = db.query(VoiceprintUser).filter(VoiceprintUser.user_id == str(user_id)).first()
     if not vp_user:
         if settings.STRICT_VOICEPRINT_USER_CHECK or device_id:
-            vp_user = VoiceprintUser(user_id=user_id, device_id=device_id)
+            vp_user = VoiceprintUser(user_id=str(user_id), device_id=device_id)
             db.add(vp_user)
             db.commit()
     elif device_id and vp_user.device_id != device_id:
@@ -80,7 +80,7 @@ async def enroll_voiceprint(
         
         # Create DB record
         # Set other voiceprints for this user to inactive
-        db.query(Voiceprint).filter(Voiceprint.user_id == user_id).update({"is_active": False})
+        db.query(Voiceprint).filter(Voiceprint.user_id == str(user_id)).update({"is_active": False})
         
         # Retrieve vector ID - verifier.enroll_user doesn't return it currently, 
         
@@ -90,7 +90,7 @@ async def enroll_voiceprint(
         vector_id = uuid.uuid4() 
         
         new_vp = Voiceprint(
-            user_id=user_id,
+            user_id=str(user_id),
             qdrant_vector_id=vector_id,
             model_name=settings.ECAPA_SOURCE,
             is_active=True
@@ -115,7 +115,7 @@ async def enroll_voiceprint(
 
 @router.post("/verify/{user_id}", response_model=VerificationResponse)
 async def verify_voiceprint(
-    user_id: UUID,
+    user_id: str,
     file: UploadFile = File(None),
     encrypted_audio: Optional[str] = Form(None),
     db: Session = Depends(get_db),
@@ -124,13 +124,13 @@ async def verify_voiceprint(
     """Verify a user's voice against their enrolled voiceprint."""
     # Check if user exists (if strict check is enabled)
     if settings.STRICT_VOICEPRINT_USER_CHECK:
-        vp_user = db.query(VoiceprintUser).filter(VoiceprintUser.user_id == user_id).first()
+        vp_user = db.query(VoiceprintUser).filter(VoiceprintUser.user_id == str(user_id)).first()
         if not vp_user:
             raise HTTPException(status_code=404, detail="Voiceprint user not found")
 
     # Get active voiceprint
     voiceprint = db.query(Voiceprint).filter(
-        Voiceprint.user_id == user_id, 
+        Voiceprint.user_id == str(user_id), 
         Voiceprint.is_active == True
     ).first()
     
@@ -166,7 +166,7 @@ async def verify_voiceprint(
         # Log attempt
         import uuid
         attempt = VerificationAttempt(
-            user_id=user_id,
+            user_id=str(user_id),
             voiceprint_id=voiceprint.id,
             probe_qdrant_vector_id=uuid.uuid4(), # Placeholder
             raw_plda_score=result["raw_score"],
@@ -199,15 +199,15 @@ async def verify_voiceprint(
 
 
 @router.get("/{user_id}/voiceprints", response_model=List[VoiceprintResponse])
-async def list_user_voiceprints(user_id: UUID, db: Session = Depends(get_db)):
+async def list_user_voiceprints(user_id: str, db: Session = Depends(get_db)):
     """List all voiceprints for a user."""
-    voiceprints = db.query(Voiceprint).filter(Voiceprint.user_id == user_id).all()
+    voiceprints = db.query(Voiceprint).filter(Voiceprint.user_id == str(user_id)).all()
     return voiceprints
 
 
 @router.patch("/{voiceprint_id}", response_model=VoiceprintUpdateResponse)
 async def update_voiceprint(
-    voiceprint_id: UUID, 
+    voiceprint_id: str, 
     request: VoiceprintUpdateRequest, 
     db: Session = Depends(get_db)
 ):
@@ -259,10 +259,10 @@ async def delete_voiceprint(
 
 
 @router.get("/verify/{user_id}/history", response_model=List[VerificationAttemptResponse])
-async def get_verification_history(user_id: UUID, db: Session = Depends(get_db)):
+async def get_verification_history(user_id: str, db: Session = Depends(get_db)):
     """Get verification attempt history for a user."""
     attempts = db.query(VerificationAttempt).filter(
-        VerificationAttempt.user_id == user_id
+        VerificationAttempt.user_id == str(user_id)
     ).order_by(VerificationAttempt.created_at.desc()).all()
     return attempts
 

@@ -4,7 +4,7 @@ from typing import List
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, Index
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import backref, relationship
 
 from app.db.database import Base
 
@@ -78,7 +78,7 @@ class VerificationAttempt(Base):
 
     # Relationships (Optional, only works if VoiceprintUser exists)
     vp_user = relationship("VoiceprintUser", backref="verification_attempts")
-    voiceprint = relationship("Voiceprint", backref="verification_attempts")
+    voiceprint = relationship("Voiceprint", backref=backref("verification_attempts", passive_deletes=True))
 
     def __repr__(self) -> str:
         return f"<VerificationAttempt {self.id} decision={self.decision}>"

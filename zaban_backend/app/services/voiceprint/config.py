@@ -6,7 +6,7 @@ class VoiceprintSettings(BaseSettings):
     """Voiceprint specific configuration."""
     
     # Qdrant
-    QDRANT_HOST: str = "qdrant"
+    QDRANT_HOST: str = "localhost"
     QDRANT_PORT: int = 6333
     
     # Voiceprint Collections
