@@ -27,11 +27,11 @@ class VoiceprintSettings(BaseSettings):
     
     # Security
     XOR_AUDIO_KEY: str = "voiceprint_xor_key_v1"
-    AUDIO_ENCRYPTION_ENABLED: bool = True
+    AUDIO_ENCRYPTION_ENABLED: bool = False
     
     # Feature Toggle
     VOICEPRINT_ENABLED: bool = True
-    STRICT_VOICEPRINT_USER_CHECK: bool = True
+    # STRICT_VOICEPRINT_USER_CHECK: bool = True
     
     model_config = SettingsConfigDict(
         env_file=".env",
