@@ -90,7 +90,7 @@ class VoiceVerifierECAPA:
     def enroll_user(
         self,
         audio_paths: List[Union[str, np.ndarray, dict]],
-        user_id: str,
+        customer_id: str,
     ) -> Dict:
         """
         Enroll a user with multiple audio samples.
@@ -113,8 +113,8 @@ class VoiceVerifierECAPA:
         if norm > 0:
             centroid = centroid / norm
         
-        # Generate point ID from user_id
-        point_id = int(hashlib.sha256(user_id.encode()).hexdigest()[:15], 16) % (2**63)
+        # Generate point ID from customer_id
+        point_id = int(hashlib.sha256(customer_id.encode()).hexdigest()[:15], 16) % (2**63)
         
         # Upsert to Qdrant
         self.qdrant_client.upsert(
@@ -123,22 +123,23 @@ class VoiceVerifierECAPA:
                 PointStruct(
                     id=point_id,
                     vector=vector_to_list(centroid),
-                    payload={"user_id": user_id, "num_samples": len(audio_paths)},
+                    payload={"customer_id": customer_id, "num_samples": len(audio_paths)},
                 )
             ],
         )
         
         return {
             "status": "success",
-            "user_id": user_id,
+            "customer_id": customer_id,
+            "point_id": point_id,
             "message": f"User enrolled successfully with {len(audio_paths)} samples",
         }
 
-    def get_user_embedding(self, user_id: str) -> Optional[np.ndarray]:
+    def get_user_embedding(self, customer_id: str) -> Optional[np.ndarray]:
         """
         Retrieve enrolled user's centroid embedding.
         """
-        point_id = int(hashlib.sha256(user_id.encode()).hexdigest()[:15], 16) % (2**63)
+        point_id = int(hashlib.sha256(customer_id.encode()).hexdigest()[:15], 16) % (2**63)
         try:
             out = self.qdrant_client.retrieve(
                 collection_name=settings.ENROLLED_COLLECTION,
@@ -154,7 +155,7 @@ class VoiceVerifierECAPA:
     def verify_speaker(
         self,
         audio_path: Union[str, np.ndarray, dict],
-        user_id: str,
+        customer_id: str,
     ) -> Dict:
         """
         Verify if the audio belongs to the enrolled user.
@@ -163,11 +164,11 @@ class VoiceVerifierECAPA:
         test_emb = self.extract_embedding(audio_path)
         
         # Get enrolled user embedding
-        user_emb = self.get_user_embedding(user_id)
+        user_emb = self.get_user_embedding(customer_id)
         if user_emb is None:
             return {
                 "verified": False,
-                "error": f"User {user_id} not found",
+                "error": f"Customer {customer_id} not found",
                 "score": None,
                 "raw_score": None,
             }
@@ -217,17 +218,17 @@ class VoiceVerifierECAPA:
             "cohort_size": self.cohort_top_k,
         }
 
-    def delete_user(self, user_id: str) -> Dict:
+    def delete_user(self, customer_id: str) -> Dict:
         """
         Delete an enrolled user from vector store.
         """
-        point_id = int(hashlib.sha256(user_id.encode()).hexdigest()[:15], 16) % (2**63)
+        point_id = int(hashlib.sha256(customer_id.encode()).hexdigest()[:15], 16) % (2**63)
         try:
             self.qdrant_client.delete(
                 collection_name=settings.ENROLLED_COLLECTION,
                 points_selector=[point_id],
             )
-            return {"status": "success", "message": f"User {user_id} deleted"}
+            return {"status": "success", "message": f"Customer {customer_id} deleted"}
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
@@ -245,7 +246,7 @@ class VoiceVerifierECAPA:
             users = []
             for point in result[0]:
                 users.append({
-                    "user_id": point.payload.get("user_id"),
+                    "customer_id": point.payload.get("customer_id"),
                     "num_samples": point.payload.get("num_samples"),
                 })
             return users
