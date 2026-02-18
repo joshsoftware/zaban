@@ -62,13 +62,26 @@ Enrolls a user by processing multiple voice samples and storing the averaged emb
 - **Method**: `POST`
 - **Body**: `multipart/form-data`
   - `files`: Multiple audio files (minimum 3)
+  - `device_id`: (Optional) Unique identifier for the device
 
 **Example Request:**
 ```bash
 curl -X POST http://localhost:8000/api/v1/voiceprint/enroll/USER_UUID \
   -F "files=@voice1.wav" \
   -F "files=@voice2.wav" \
-  -F "files=@voice3.wav"
+  -F "files=@voice3.wav" \
+  -F "device_id=my-device-123"
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "user_id": "USER_UUID",
+  "device_id": "my-device-123",
+  "message": "Voiceprint enrolled successfully",
+  "num_samples": 3
+}
 ```
 
 ### 2. Verify Speaker
@@ -77,13 +90,19 @@ Verifies a voice sample against a user's enrolled voiceprint.
 - **URL**: `/api/v1/voiceprint/verify/{user_id}`
 - **Method**: `POST`
 - **Body**: `multipart/form-data`
-  - `file`: Audio file to verify
+  - `file`: (Optional) Audio file to verify
   - `encrypted_audio`: (Optional) Base64 XOR-encrypted audio from frontend
 
-**Example Request:**
+**Example Request (File):**
 ```bash
 curl -X POST http://localhost:8000/api/v1/voiceprint/verify/USER_UUID \
   -F "file=@test_voice.wav"
+```
+
+**Example Request (Encrypted):**
+```bash
+curl -X POST http://localhost:8000/api/v1/voiceprint/verify/USER_UUID \
+  -F "encrypted_audio=BASE64_XOR_DATA"
 ```
 
 **Response:**
@@ -91,8 +110,15 @@ curl -X POST http://localhost:8000/api/v1/voiceprint/verify/USER_UUID \
 {
   "verified": true,
   "score": 4.52,
+  "raw_score": 1.25,
   "threshold": 3.0,
-  "cohort_stats": { ... }
+  "cohort_stats": {
+    "enrollment_cohort_mean": 0.12,
+    "enrollment_cohort_std": 0.05,
+    "test_cohort_mean": 0.11,
+    "test_cohort_std": 0.04,
+    "cohort_size": 30
+  }
 }
 ```
 
@@ -102,14 +128,37 @@ Lists all voiceprints (enrolled sessions) for a specific user.
 - **URL**: `/api/v1/voiceprint/{user_id}/voiceprints`
 - **Method**: `GET`
 
+**Response:**
+```json
+[
+  {
+    "id": "VP_UUID",
+    "user_id": "USER_UUID",
+    "qdrant_vector_id": "VECTOR_UUID",
+    "model_name": "speechbrain/spkrec-ecapa-voxceleb",
+    "is_active": true,
+    "created_at": "2023-10-27T10:00:00"
+  }
+]
+```
+
 ### 4. Management Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/voiceprint/{voiceprint_id}` | `PATCH` | Activate/Deactivate a specific voiceprint |
-| `/api/v1/voiceprint/{voiceprint_id}` | `DELETE` | Delete a voiceprint record |
-| `/api/v1/voiceprint/verify/{user_id}/history` | `GET` | Get verification attempt logs |
-| `/api/v1/voiceprint/health` | `GET` | Check Qdrant connectivity |
+| Endpoint | Method | Body | Description |
+|----------|--------|------|-------------|
+| `/api/v1/voiceprint/{voiceprint_id}` | `PATCH` | `{"is_active": bool}` | Activate/Deactivate a specific voiceprint |
+| `/api/v1/voiceprint/{voiceprint_id}` | `DELETE` | - | Delete a voiceprint record |
+| `/api/v1/voiceprint/verify/{user_id}/history` | `GET` | - | Get verification attempt logs |
+| `/api/v1/voiceprint/health` | `GET` | - | Check Qdrant connectivity |
+
+**Health Check Response:**
+```json
+{
+  "status": "healthy",
+  "qdrant_connected": true,
+  "collections": ["voice_embeddings"]
+}
+```
 
 ## 🧪 Testing Tips
 - Use `.wav` files with 16kHz sampling rate for best results.

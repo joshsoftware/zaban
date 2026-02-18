@@ -27,6 +27,7 @@ class VoiceprintSettings(BaseSettings):
     
     # Security
     XOR_AUDIO_KEY: str = "voiceprint_xor_key_v1"
+    AUDIO_ENCRYPTION_ENABLED: bool = True
     
     # Feature Toggle
     VOICEPRINT_ENABLED: bool = True

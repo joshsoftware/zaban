@@ -1,34 +1,69 @@
-"""Simple XOR cipher for audio data protection during transmission."""
+"""
+XOR Cipher Utility
 
-import base64
+Purpose:
+- Lightweight transport-level obfuscation for audio bytes
+- NOT cryptographic security
+- Reversible using the same key
+
+IMPORTANT:
+- This should only be used at API boundaries
+- Never store encrypted audio
+- Never pass encrypted bytes to ML models
+"""
+
+from typing import Union
 
 
-def xor_cipher(data: bytes, key: str) -> bytes:
+class XORCipher:
     """
-    Apply XOR cipher to bytes with a repeating key.
+    Stateless XOR cipher for bytes-level encryption/decryption.
+    """
+
+    def __init__(self, key: Union[str, bytes]):
+        if not key:
+            raise ValueError("XOR key must not be empty")
+
+        if isinstance(key, str):
+            key = key.encode("utf-8")
+
+        self._key = key
+        self._key_len = len(key)
+
+    def apply(self, data: bytes) -> bytes:
+        """
+        Apply XOR cipher to input bytes.
+
+        The same method is used for encryption and decryption.
+
+        Args:
+            data: raw bytes (encrypted or plain)
+
+        Returns:
+            XOR-processed bytes
+        """
+        if not isinstance(data, (bytes, bytearray)):
+            raise TypeError("XORCipher expects bytes-like input")
+
+        result = bytearray(len(data))
+
+        for i, byte in enumerate(data):
+            key_byte = self._key[i % self._key_len]
+            result[i] = byte ^ key_byte
+
+        return bytes(result)
+
+
+def decrypt_audio_bytes(encrypted_bytes: bytes, key: str) -> bytes:
+    """
+    Decrypt XOR-encrypted audio bytes at API boundary.
     
     Args:
-        data: Input bytes
-        key: Encryption key
-        
-    Returns:
-        XORed bytes
-    """
-    key_bytes = key.encode()
-    key_len = len(key_bytes)
-    return bytes(b ^ key_bytes[i % key_len] for i, b in enumerate(data))
-
-
-def decrypt_audio_base64(encoded_data: str, key: str) -> bytes:
-    """
-    Decrypt base64 encoded XORed audio.
-    
-    Args:
-        encoded_data: Base64 string of encrypted data
-        key: XOR key
+        encrypted_bytes: The encrypted audio bytes from frontend
+        key: The XOR key (should match frontend key)
         
     Returns:
         Decrypted audio bytes
     """
-    encrypted_data = base64.b64decode(encoded_data)
-    return xor_cipher(encrypted_data, key)
+    cipher = XORCipher(key)
+    return cipher.apply(encrypted_bytes)
