@@ -1,7 +1,7 @@
 """Pydantic schemas for voiceprint operations."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -15,19 +15,6 @@ class EnrollmentResponse(BaseModel):
     device_id: Optional[str] = Field(None, description="Device unique identifier")
     message: str = Field(..., description="Human-readable message")
     num_samples: Optional[int] = Field(None, description="Number of audio samples used")
-
-
-class UserInfo(BaseModel):
-    """Simplified user info for lists."""
-    customer_id: str
-    device_id: Optional[str] = None
-    num_samples: Optional[int] = None
-
-
-class UserListResponse(BaseModel):
-    """Response model for listing enrolled users in vector store."""
-    users: List[UserInfo]
-    count: int
 
 
 # Verification Schemas

@@ -8,16 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, R
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.models.voiceprint import Voiceprint, VerificationAttempt, VoiceprintUser
+from app.models.voiceprint import Voiceprint, VerificationAttempt
 from app.schemas.voiceprint import (
     EnrollmentResponse,
     VerificationResponse,
-    VoiceprintResponse,
     VoiceprintUpdateRequest,
     VoiceprintUpdateResponse,
     VerificationAttemptResponse,
-    UserListResponse,
-    UserInfo
 )
 from app.services.voiceprint.config import voiceprint_settings as settings
 from app.services.voiceprint.utils.xor_cipher import decrypt_audio_bytes
@@ -36,26 +33,19 @@ def get_verifier(request: Request):
     return verifier
 
 
-@router.post("/enroll/{user_id}", response_model=EnrollmentResponse)
+@router.post("/enroll", response_model=EnrollmentResponse)
 async def enroll_voiceprint(
-    user_id: str,
+    customer_id: str = Form(...),
     device_id: Optional[str] = Form(None),
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
     verifier=Depends(get_verifier)
 ):
-    """Enroll a user's voiceprint with multiple audio samples."""
-    # Check if voiceprint user exists, if not create one (if strict or device_id provided)
-    vp_user = db.query(VoiceprintUser).filter(VoiceprintUser.user_id == str(user_id)).first()
-    if not vp_user:
-        if settings.STRICT_VOICEPRINT_USER_CHECK or device_id:
-            vp_user = VoiceprintUser(user_id=str(user_id), device_id=device_id)
-            db.add(vp_user)
-            db.commit()
-    elif device_id and vp_user.device_id != device_id:
-        vp_user.device_id = device_id
-        db.commit()
-
+    """Enroll a user's voiceprint with multiple audio samples.
+    
+    One user can have only one voiceprint. If a voiceprint already exists
+    for this customer_id, it will be replaced.
+    """
     if len(files) < settings.MIN_ENROLLMENT_SAMPLES:
         raise HTTPException(
             status_code=400, 
@@ -75,40 +65,36 @@ async def enroll_voiceprint(
                 except Exception:
                     raise HTTPException(status_code=400, detail="Failed to decrypt audio file")
             # Save to temp file for processing
-            temp_path = f"/tmp/{user_id}_{file.filename}"
+            temp_path = f"/tmp/{customer_id}_{file.filename}"
             with open(temp_path, "wb") as f:
                 f.write(content)
             temp_files.append(temp_path)
             audio_data.append(temp_path)
 
         # Enroll in vector store
-        result = verifier.enroll_user(audio_data, str(user_id))
+        result = verifier.enroll_user(audio_data, str(customer_id))
         
-        # Create DB record
-        # Set other voiceprints for this user to inactive
-        db.query(Voiceprint).filter(Voiceprint.user_id == str(user_id)).update({"is_active": False})
+        # One user = one voiceprint: remove existing voiceprint if any
+        existing_vp = db.query(Voiceprint).filter(Voiceprint.customer_id == str(customer_id)).first()
+        if existing_vp:
+            db.delete(existing_vp)
+            db.flush()
         
-        # Retrieve vector ID - verifier.enroll_user doesn't return it currently, 
-        
-        # TODO: Refactor verifier to accept/return vector_id if needed.
-        # using placeholder UUID since verifier uses user_id as key in Qdrant.
-        import uuid
-        vector_id = uuid.uuid4() 
-        
+        # Create new voiceprint record
         new_vp = Voiceprint(
-            user_id=str(user_id),
-            qdrant_vector_id=vector_id,
-            model_name=settings.ECAPA_SOURCE,
+            customer_id=str(customer_id),
+            qdrant_vector_id=result["point_id"],
             is_active=True
         )
+
         db.add(new_vp)
         db.commit()
         db.refresh(new_vp)
         
         return EnrollmentResponse(
             status="success",
-            user_id=user_id,
-            device_id=vp_user.device_id if vp_user else None,
+            customer_id=customer_id,
+            device_id=device_id,
             message="Voiceprint enrolled successfully",
             num_samples=len(files)
         )
@@ -119,24 +105,19 @@ async def enroll_voiceprint(
                 os.remove(path)
 
 
-@router.post("/verify/{user_id}", response_model=VerificationResponse)
+@router.post("/verify", response_model=VerificationResponse)
 async def verify_voiceprint(
-    user_id: str,
+    customer_id: str = Form(...),
+    device_id: Optional[str] = Form(None),
     file: UploadFile = File(None),
     encrypted_audio: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     verifier=Depends(get_verifier)
 ):
     """Verify a user's voice against their enrolled voiceprint."""
-    # Check if user exists (if strict check is enabled)
-    if settings.STRICT_VOICEPRINT_USER_CHECK:
-        vp_user = db.query(VoiceprintUser).filter(VoiceprintUser.user_id == str(user_id)).first()
-        if not vp_user:
-            raise HTTPException(status_code=404, detail="Voiceprint user not found")
-
     # Get active voiceprint
     voiceprint = db.query(Voiceprint).filter(
-        Voiceprint.user_id == str(user_id), 
+        Voiceprint.customer_id == str(customer_id), 
         Voiceprint.is_active == True
     ).first()
     
@@ -161,13 +142,13 @@ async def verify_voiceprint(
     else:
         raise HTTPException(status_code=400, detail="No audio provided")
 
-    temp_path = f"/tmp/verify_{user_id}.wav"
+    temp_path = f"/tmp/verify_{customer_id}.wav"
     try:
         with open(temp_path, "wb") as f:
             f.write(audio_content)
 
         # Verify
-        result = verifier.verify_speaker(temp_path, str(user_id))
+        result = verifier.verify_speaker(temp_path, str(customer_id))
         
         if result.get("error"):
             return VerificationResponse(
@@ -176,18 +157,23 @@ async def verify_voiceprint(
                 error=result["error"]
             )
 
+        is_verified = result["verified"]
+
         # Log attempt
-        import uuid
         attempt = VerificationAttempt(
-            user_id=str(user_id),
             voiceprint_id=voiceprint.id,
-            probe_qdrant_vector_id=uuid.uuid4(), # Placeholder
             raw_plda_score=result["raw_score"],
             as_norm_score=result["score"],
             threshold=result["threshold"],
-            decision="accept" if result["verified"] else "reject"
         )
         db.add(attempt)
+
+        # Update voiceprint verification status
+        if is_verified:
+            from datetime import datetime, timezone
+            voiceprint.verification = True
+            voiceprint.last_verified_at = datetime.now(timezone.utc)
+
         db.commit()
 
         from app.schemas.voiceprint import CohortStatistics
@@ -200,7 +186,7 @@ async def verify_voiceprint(
         )
 
         return VerificationResponse(
-            verified=result["verified"],
+            verified=is_verified,
             score=result["score"],
             raw_score=result["raw_score"],
             threshold=result["threshold"],
@@ -210,12 +196,6 @@ async def verify_voiceprint(
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
-
-@router.get("/{user_id}/voiceprints", response_model=List[VoiceprintResponse])
-async def list_user_voiceprints(user_id: str, db: Session = Depends(get_db)):
-    """List all voiceprints for a user."""
-    voiceprints = db.query(Voiceprint).filter(Voiceprint.user_id == str(user_id)).all()
-    return voiceprints
 
 
 @router.patch("/{voiceprint_id}", response_model=VoiceprintUpdateResponse)
@@ -230,9 +210,9 @@ async def update_voiceprint(
         raise HTTPException(status_code=404, detail="Voiceprint not found")
 
     if request.is_active:
-        # Deactivate others for this user
+        # Deactivate others for this customer
         db.query(Voiceprint).filter(
-            Voiceprint.user_id == vp.user_id, 
+            Voiceprint.customer_id == vp.customer_id, 
             Voiceprint.id != voiceprint_id
         ).update({"is_active": False})
     
@@ -246,36 +226,40 @@ async def update_voiceprint(
     )
 
 
-@router.delete("/{voiceprint_id}")
+@router.delete("/")
 async def delete_voiceprint(
-    voiceprint_id: UUID, 
+    customer_id: str = Form(...), 
     db: Session = Depends(get_db),
     verifier=Depends(get_verifier)
 ):
     """Delete a voiceprint."""
-    vp = db.query(Voiceprint).filter(Voiceprint.id == voiceprint_id).first()
+    vp = db.query(Voiceprint).filter(Voiceprint.customer_id == customer_id).first()
     if not vp:
         raise HTTPException(status_code=404, detail="Voiceprint not found")
-
-    # Note: verifier.delete_user uses user_id. If multiple VPs exist
-    user_id = str(vp.user_id)
     
     db.delete(vp)
     db.commit()
     
-    # Check if any other VPs exist for this user before deleting from vector store
-    remaining = db.query(Voiceprint).filter(Voiceprint.user_id == vp.user_id).count()
+    # Check if any other VPs exist for this customer before deleting from vector store
+    remaining = db.query(Voiceprint).filter(Voiceprint.customer_id == customer_id).count()
     if remaining == 0:
-        verifier.delete_user(user_id)
+        verifier.delete_user(customer_id)
     
     return {"status": "success", "message": "Voiceprint deleted"}
 
 
-@router.get("/verify/{user_id}/history", response_model=List[VerificationAttemptResponse])
-async def get_verification_history(user_id: str, db: Session = Depends(get_db)):
-    """Get verification attempt history for a user."""
+@router.get("/verify/{customer_id}/history", response_model=List[VerificationAttemptResponse])
+async def get_verification_history(customer_id: str, db: Session = Depends(get_db)):
+    """Get verification attempt history for a customer."""
+    voiceprint = db.query(Voiceprint).filter(
+        Voiceprint.customer_id == str(customer_id)
+    ).first()
+
+    if not voiceprint:
+        raise HTTPException(status_code=404, detail="Voiceprint not found for this customer")
+
     attempts = db.query(VerificationAttempt).filter(
-        VerificationAttempt.user_id == str(user_id)
+        VerificationAttempt.voiceprint_id == voiceprint.id
     ).order_by(VerificationAttempt.created_at.desc()).all()
     return attempts
 
