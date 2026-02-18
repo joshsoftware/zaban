@@ -5,6 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -23,14 +24,28 @@ router = APIRouter(prefix="/voiceprint", tags=["voiceprint"])
 
 
 def get_verifier(request: Request):
-    """Dependency to get the voice verifier from app state."""
+    """Dependency to get the voice verifier from app state.
+    
+    Returns None with a reason message if the service is unavailable,
+    instead of raising an exception.
+    """
     if not settings.VOICEPRINT_ENABLED:
-        raise HTTPException(status_code=501, detail="Voiceprint service is disabled")
+        return None
     
     verifier = getattr(request.app.state, "voice_verifier", None)
-    if verifier is None:
-        raise HTTPException(status_code=503, detail="Voiceprint service not initialized")
     return verifier
+
+
+def _service_unavailable_response() -> JSONResponse:
+    """Return a graceful response when voiceprint service is unavailable."""
+    if not settings.VOICEPRINT_ENABLED:
+        msg = "Voiceprint service is disabled"
+    else:
+        msg = "Voiceprint service is not initialized"
+    return JSONResponse(
+        status_code=503,
+        content={"status": "unavailable", "message": msg}
+    )
 
 
 @router.post("/enroll", response_model=EnrollmentResponse)
@@ -46,6 +61,8 @@ async def enroll_voiceprint(
     One user can have only one voiceprint. If a voiceprint already exists
     for this customer_id, it will be replaced.
     """
+    if verifier is None:
+        return _service_unavailable_response()
     if len(files) < settings.MIN_ENROLLMENT_SAMPLES:
         raise HTTPException(
             status_code=400, 
@@ -115,6 +132,8 @@ async def verify_voiceprint(
     verifier=Depends(get_verifier)
 ):
     """Verify a user's voice against their enrolled voiceprint."""
+    if verifier is None:
+        return _service_unavailable_response()
     # Get active voiceprint
     voiceprint = db.query(Voiceprint).filter(
         Voiceprint.customer_id == str(customer_id), 
@@ -233,6 +252,8 @@ async def delete_voiceprint(
     verifier=Depends(get_verifier)
 ):
     """Delete a voiceprint."""
+    if verifier is None:
+        return _service_unavailable_response()
     vp = db.query(Voiceprint).filter(Voiceprint.customer_id == customer_id).first()
     if not vp:
         raise HTTPException(status_code=404, detail="Voiceprint not found")
@@ -267,6 +288,8 @@ async def get_verification_history(customer_id: str, db: Session = Depends(get_d
 @router.get("/health")
 async def voiceprint_health(verifier=Depends(get_verifier)):
     """Check if the voiceprint service (Qdrant) is reachable."""
+    if verifier is None:
+        return _service_unavailable_response()
     try:
         collections = verifier.qdrant_client.get_collections()
         return {
