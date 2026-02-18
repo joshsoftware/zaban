@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 class EnrollmentResponse(BaseModel):
     """Response model for enrollment endpoint."""
     status: str = Field(..., description="Status of the enrollment operation")
-    user_id: str = Field(..., description="User unique identifier")
+    customer_id: str = Field(..., description="Customer unique identifier")
     device_id: Optional[str] = Field(None, description="Device unique identifier")
     message: str = Field(..., description="Human-readable message")
     num_samples: Optional[int] = Field(None, description="Number of audio samples used")
@@ -19,7 +19,7 @@ class EnrollmentResponse(BaseModel):
 
 class UserInfo(BaseModel):
     """Simplified user info for lists."""
-    user_id: str
+    customer_id: str
     device_id: Optional[str] = None
     num_samples: Optional[int] = None
 
@@ -54,10 +54,11 @@ class VerificationResponse(BaseModel):
 class VoiceprintResponse(BaseModel):
     """Response model for voiceprint object."""
     id: UUID
-    user_id: str
-    qdrant_vector_id: UUID
-    model_name: str
+    customer_id: str
+    qdrant_vector_id: int
     is_active: bool
+    verification: bool
+    last_verified_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
@@ -79,13 +80,11 @@ class VoiceprintUpdateResponse(BaseModel):
 class VerificationAttemptResponse(BaseModel):
     """Response model for verification attempt log entry."""
     id: UUID
-    user_id: str
     voiceprint_id: UUID
-    verified: bool
-    decision: str
     raw_plda_score: float
     as_norm_score: float
     threshold: float
+    count: int
     created_at: datetime
 
     class Config:
