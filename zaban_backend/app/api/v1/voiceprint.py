@@ -59,10 +59,18 @@ async def enroll_voiceprint(
     """Enroll a user's voiceprint with multiple audio samples.
     
     One user can have only one voiceprint. If a voiceprint already exists
-    for this customer_id, it will be replaced.
+    for this customer_id, it will raise an error.
     """
     if verifier is None:
         return _service_unavailable_response()
+
+    # Check for existing voiceprint first
+    existing_vp = db.query(Voiceprint).filter(Voiceprint.customer_id == str(customer_id)).first()
+    if existing_vp:
+        raise HTTPException(
+            status_code=400,
+            detail="Voice Print already registered"
+        )
     if len(files) < settings.MIN_ENROLLMENT_SAMPLES:
         raise HTTPException(
             status_code=400, 
@@ -90,12 +98,6 @@ async def enroll_voiceprint(
 
         # Enroll in vector store
         result = verifier.enroll_user(audio_data, str(customer_id))
-        
-        # One user = one voiceprint: remove existing voiceprint if any
-        existing_vp = db.query(Voiceprint).filter(Voiceprint.customer_id == str(customer_id)).first()
-        if existing_vp:
-            db.delete(existing_vp)
-            db.flush()
         
         # Create new voiceprint record
         new_vp = Voiceprint(
