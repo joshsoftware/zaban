@@ -43,25 +43,12 @@ class VoiceprintResponse(BaseModel):
     id: UUID
     customer_id: str
     qdrant_vector_id: int
-    is_active: bool
     verification: bool
     last_verified_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
-
-
-class VoiceprintUpdateRequest(BaseModel):
-    """Request model for updating a voiceprint."""
-    is_active: bool = Field(..., description="Set voiceprint active/inactive")
-
-
-class VoiceprintUpdateResponse(BaseModel):
-    """Response model for voiceprint update."""
-    voiceprint_id: UUID
-    is_active: bool
-    message: str
 
 
 class VerificationAttemptResponse(BaseModel):

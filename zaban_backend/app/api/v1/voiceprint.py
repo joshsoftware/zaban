@@ -13,8 +13,6 @@ from app.models.voiceprint import Voiceprint, VerificationAttempt
 from app.schemas.voiceprint import (
     EnrollmentResponse,
     VerificationResponse,
-    VoiceprintUpdateRequest,
-    VoiceprintUpdateResponse,
     VerificationAttemptResponse,
 )
 from app.services.voiceprint.config import voiceprint_settings as settings
@@ -95,8 +93,7 @@ async def enroll_voiceprint(
         # Create new voiceprint record
         new_vp = Voiceprint(
             customer_id=str(customer_id),
-            qdrant_vector_id=result["point_id"],
-            is_active=True
+            qdrant_vector_id=result["point_id"]
         )
 
         db.add(new_vp)
@@ -131,8 +128,7 @@ async def verify_voiceprint(
     
     # Get active voiceprint
     voiceprint = db.query(Voiceprint).filter(
-        Voiceprint.customer_id == str(customer_id), 
-        Voiceprint.is_active == True
+        Voiceprint.customer_id == str(customer_id)
     ).first()
     
     if not voiceprint:

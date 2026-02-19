@@ -20,7 +20,6 @@ class Voiceprint(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     customer_id = Column(String(255), unique=True, nullable=False, index=True)
     qdrant_vector_id = Column(BigInteger, unique=True, nullable=False, index=True)
-    is_active = Column(Boolean, nullable=False, default=True)
     verification = Column(Boolean, nullable=False, default=False)
     last_verified_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
@@ -29,14 +28,12 @@ class Voiceprint(Base):
     __table_args__ = (
         Index(
             "idx_voiceprints_active",
-            "customer_id",
-            "is_active",
-            postgresql_where=(is_active == True),
+            "customer_id"
         ),
     )
 
     def __repr__(self) -> str:
-        return f"<Voiceprint {self.id} customer={self.customer_id} active={self.is_active}>"
+        return f"<Voiceprint {self.id} customer={self.customer_id}>"
 
 
 class VerificationAttempt(Base):
