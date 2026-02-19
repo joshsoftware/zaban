@@ -197,7 +197,7 @@ async def verify_voiceprint(
 
 @router.delete("/")
 async def delete_voiceprint(
-    customer_id: str = Form(...), 
+    customer_id = str, 
     db: Session = Depends(get_db),
     verifier=Depends(get_verifier)
 ):
