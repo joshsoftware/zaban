@@ -14,21 +14,6 @@ load_dotenv(override=True)
 from .api.v1 import router as v1_router
 from .routes import auth as auth_routes
 
-# Monkey patch torchaudio.list_audio_backends for compatibility with speechbrain
-# This is needed because some versions of speechbrain call this removed method
-try:
-    import torchaudio
-    if not hasattr(torchaudio, "list_audio_backends"):
-        print("ℹ️  Patching torchaudio.list_audio_backends for compatibility...")
-        try:
-            # For torchaudio >= 2.1
-            from torchaudio.utils import get_audio_backend_module
-            torchaudio.list_audio_backends = lambda: [get_audio_backend_module()]
-        except ImportError:
-            # Fallback
-            torchaudio.list_audio_backends = lambda: ["ffmpeg"]
-except ImportError:
-    pass
 
 
 app = FastAPI(title="AI4Bharat FastAPI Backend", version="0.1.0")

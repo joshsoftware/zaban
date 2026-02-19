@@ -199,35 +199,6 @@ async def verify_voiceprint(
             os.remove(temp_path)
 
 
-
-@router.patch("/{voiceprint_id}", response_model=VoiceprintUpdateResponse)
-async def update_voiceprint(
-    voiceprint_id: str, 
-    request: VoiceprintUpdateRequest, 
-    db: Session = Depends(get_db)
-):
-    """Activate or deactivate a voiceprint."""
-    vp = db.query(Voiceprint).filter(Voiceprint.id == voiceprint_id).first()
-    if not vp:
-        raise HTTPException(status_code=404, detail="Voiceprint not found")
-
-    if request.is_active:
-        # Deactivate others for this customer
-        db.query(Voiceprint).filter(
-            Voiceprint.customer_id == vp.customer_id, 
-            Voiceprint.id != voiceprint_id
-        ).update({"is_active": False})
-    
-    vp.is_active = request.is_active
-    db.commit()
-    
-    return VoiceprintUpdateResponse(
-        voiceprint_id=voiceprint_id,
-        is_active=vp.is_active,
-        message=f"Voiceprint {'activated' if vp.is_active else 'deactivated'} successfully"
-    )
-
-
 @router.delete("/")
 async def delete_voiceprint(
     customer_id: str = Form(...), 
