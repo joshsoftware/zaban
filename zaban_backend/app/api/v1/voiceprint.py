@@ -18,7 +18,6 @@ from app.schemas.voiceprint import (
     VerificationAttemptResponse,
 )
 from app.services.voiceprint.config import voiceprint_settings as settings
-from app.services.voiceprint.utils.xor_cipher import decrypt_audio_bytes
 
 router = APIRouter(prefix="/voiceprint", tags=["voiceprint"])
 
@@ -83,12 +82,6 @@ async def enroll_voiceprint(
     try:
         for file in files:
             content = await file.read()
-            # Decrypt if encryption is enabled
-            if settings.AUDIO_ENCRYPTION_ENABLED:
-                try:
-                    content = decrypt_audio_bytes(content, settings.XOR_AUDIO_KEY)
-                except Exception:
-                    raise HTTPException(status_code=400, detail="Failed to decrypt audio file")
             # Save to temp file for processing
             temp_path = f"/tmp/{customer_id}_{file.filename}"
             with open(temp_path, "wb") as f:
@@ -129,13 +122,13 @@ async def verify_voiceprint(
     customer_id: str = Form(...),
     device_id: Optional[str] = Form(None),
     file: UploadFile = File(None),
-    encrypted_audio: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     verifier=Depends(get_verifier)
 ):
     """Verify a user's voice against their enrolled voiceprint."""
     if verifier is None:
         return _service_unavailable_response()
+    
     # Get active voiceprint
     voiceprint = db.query(Voiceprint).filter(
         Voiceprint.customer_id == str(customer_id), 
@@ -148,18 +141,6 @@ async def verify_voiceprint(
     # Get audio content
     if file:
         audio_content = await file.read()
-        # Decrypt if encryption is enabled
-        if settings.AUDIO_ENCRYPTION_ENABLED:
-            try:
-                audio_content = decrypt_audio_bytes(audio_content, settings.XOR_AUDIO_KEY)
-            except Exception:
-                raise HTTPException(status_code=400, detail="Failed to decrypt audio")
-    elif encrypted_audio:
-        # Legacy support: explicit encrypted_audio field (always decrypted)
-        try:
-            audio_content = decrypt_audio_bytes(encrypted_audio, settings.XOR_AUDIO_KEY)
-        except Exception:
-            raise HTTPException(status_code=400, detail="Failed to decrypt audio")
     else:
         raise HTTPException(status_code=400, detail="No audio provided")
 

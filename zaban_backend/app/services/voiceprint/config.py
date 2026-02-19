@@ -25,10 +25,6 @@ class VoiceprintSettings(BaseSettings):
     MAX_ENROLLMENT_SAMPLES: int = 10
     TARGET_SAMPLE_RATE: int = 16000
     
-    # Security
-    XOR_AUDIO_KEY: str = "voiceprint_xor_key_v1"
-    AUDIO_ENCRYPTION_ENABLED: bool = False
-    
     # Feature Toggle
     VOICEPRINT_ENABLED: bool = True
     # STRICT_VOICEPRINT_USER_CHECK: bool = True
