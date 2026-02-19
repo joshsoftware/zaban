@@ -32,14 +32,7 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index('ix_voiceprints_qdrant_vector_id', 'voiceprints', ['qdrant_vector_id'], unique=True)
-    op.create_index('ix_voiceprints_customer_id', 'voiceprints', ['customer_id'], unique=False)
     op.create_unique_constraint('uq_voiceprints_customer_id', 'voiceprints', ['customer_id'])
-    op.create_index(
-        'idx_voiceprints_active',
-        'voiceprints',
-        ['customer_id'],
-        unique=False
-    )
 
     # Create verification_attempts table
     op.create_table(
