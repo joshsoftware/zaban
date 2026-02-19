@@ -1,13 +1,15 @@
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class VoiceprintSettings(BaseSettings):
     """Voiceprint specific configuration."""
     
-    # Qdrant
-    QDRANT_HOST: str = "localhost"
-    QDRANT_PORT: int = 6333
+    # Qdrant (Loaded from .env)
+    QDRANT_HOST: str = os.getenv("QDRANT_HOST", "localhost")
+    QDRANT_PORT: int = int(os.getenv("QDRANT_PORT", 6333))
     
     # Voiceprint Collections
     ENROLLED_COLLECTION: str = "enrolled_users_ecapa"
