@@ -1,10 +1,13 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
+
+from ...core.api_key_auth import require_api_key
+
 
 router = APIRouter(prefix="")
 
 
 @router.post("/detect-language")
-async def detect_language(body: dict = Body(...)):
+async def detect_language(body: dict = Body(...), _api_key=Depends(require_api_key)):
     """
     Detect language from text using FastText.
     

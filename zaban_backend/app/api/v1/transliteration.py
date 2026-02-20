@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 
 from ...services.ai4bharat import Ai4BharatClient
+from ...core.api_key_auth import require_api_key
 
 
 router = APIRouter(prefix="")
@@ -20,7 +21,7 @@ client = Ai4BharatClient()
 
 
 @router.post("/transliterate")
-async def transliterate(req: TransliterateRequest):
+async def transliterate(req: TransliterateRequest, _api_key=Depends(require_api_key)):
     try:
         return await client.transliterate(
             text=req.text,

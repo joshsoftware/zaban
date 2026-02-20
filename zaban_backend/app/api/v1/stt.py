@@ -2,10 +2,11 @@ import io
 import logging
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from starlette.datastructures import UploadFile
 
 from ...services.ai4bharat import Ai4BharatClient
+from ...core.api_key_auth import require_api_key
 
 
 router = APIRouter(prefix="")
@@ -50,7 +51,7 @@ def _log_stt_response(response: dict, request_kind: str) -> None:
 
 
 @router.post("/stt")
-async def stt(request: Request):
+async def stt(request: Request, _api_key=Depends(require_api_key)):
     """
     Speech-to-Text: accept either multipart (audio file) or JSON (audio_url, optional lang).
     JSON: audio_url required; lang optional (auto-detect when omitted).
