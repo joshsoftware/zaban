@@ -232,7 +232,7 @@ def download_voiceprint_models():
         # Ensure directory exists
         os.makedirs(local_dir, exist_ok=True)
 
-        hf_token = os.getenv("HUGGING_FACE_TOKEN") or os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+        hf_token = os.getenv("HUGGING_FACE_TOKEN")
 
         print(f"\n📦 Checking: {model_repo}")
         print(f"📂 Local directory: {local_dir}")
