@@ -64,7 +64,7 @@ class VoiceVerifierECAPA:
         # Initialize Qdrant client
         qdrant_host = qdrant_host or settings.QDRANT_HOST
         qdrant_port = qdrant_port or settings.QDRANT_PORT
-        print(f"📡 Connecting to Qdrant at {qdrant_host}:{qdrant_port}...")
+        print(f"Connecting to Qdrant at {qdrant_host}:{qdrant_port}...")
         
         # Keep sync client for initialization/management if needed, 
         # but primarily we use async client for operations.
@@ -103,11 +103,10 @@ class VoiceVerifierECAPA:
             t1 = time.time()
             emb = self._embedder.extract_embedding(audio, sample_rate=settings.TARGET_SAMPLE_RATE)
             t2 = time.time()
-            print(f" [Extract] Load: {t1-t0:.3f}s, Inference: {t2-t1:.3f}s")
             return emb
             
         res = await loop.run_in_executor(self._executor, _extract)
-        print(f" [Extract] Total (queued+run): {time.time()-start:.3f}s")
+        
         return res
 
     async def enroll_user(
@@ -184,17 +183,16 @@ class VoiceVerifierECAPA:
         Verify if the audio belongs to the enrolled user.
         """
         total_start = time.time()
-        print(f" [Verify] Starting verification for {customer_id}")
 
         # Extract test embedding
         t0 = time.time()
         test_emb = await self.extract_embedding(audio_path)
-        print(f" [Verify] Extract Test Embedding: {time.time()-t0:.3f}s")
+    
         
         # Get enrolled user embedding
         t0 = time.time()
         user_emb = await self.get_user_embedding(customer_id)
-        print(f" [Verify] Get User Embedding (Qdrant): {time.time()-t0:.3f}s")
+        
 
         if user_emb is None:
             return {
@@ -213,10 +211,10 @@ class VoiceVerifierECAPA:
             plda_score, 
             user_emb, test_emb, self._plda
         )
-        print(f" [Verify] Raw PLDA Score: {time.time()-t0:.3f}s")
+        
         
         # Get cohort vectors for AS-Norm (Async Qdrant)
-        print(f" [Verify] FetchingCohort (k={self.cohort_top_k})...")
+        
         t0 = time.time()
         # Run both queries concurrently
         cohort_enroll_task = get_top_k_cohort_vectors(
@@ -227,7 +225,7 @@ class VoiceVerifierECAPA:
         )
         
         cohort_enroll, cohort_test = await asyncio.gather(cohort_enroll_task, cohort_test_task)
-        print("[Verify] Cohort Fetched: ", time.time()-t0)
+        
         
         if not cohort_enroll or not cohort_test:
             return {
@@ -249,7 +247,7 @@ class VoiceVerifierECAPA:
             compute_cohort_plda_scores,
             test_emb, cohort_test, self._plda
         )
-        print("[Verify] Cohort Scores Computed: ", time.time()-t0)
+        
         
         # Compute AS-Norm score
         mu_e = np.mean(scores_enroll)
