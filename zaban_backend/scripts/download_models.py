@@ -214,6 +214,54 @@ def download_fasttext_model():
         print(f"❌ Failed to download FastText model: {e}")
         return False
 
+def download_voiceprint_models():
+    """Download SpeechBrain ECAPA Voiceprint model from Hugging Face"""
+    print("\n" + "=" * 70)
+    print("📥 Downloading SpeechBrain ECAPA Voiceprint Model")
+    print("=" * 70)
+
+    try:
+        from speechbrain.inference.speaker import EncoderClassifier  # Fixed import
+        
+        model_repo = "speechbrain/spkrec-ecapa-voxceleb"
+        local_dir = os.getenv(
+            "VOICEPRINT_MODEL_DIR",
+            "./pretrained_models/spkrec-ecapa-voxceleb"  # Fixed to match config
+        )
+        
+        # Ensure directory exists
+        os.makedirs(local_dir, exist_ok=True)
+
+        hf_token = os.getenv("HUGGING_FACE_TOKEN") or os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+
+        print(f"\n📦 Checking: {model_repo}")
+        print(f"📂 Local directory: {local_dir}")
+
+        # Skip download if already present
+        if os.path.exists(local_dir) and os.listdir(local_dir):
+            print("✅ ECAPA Voiceprint model already cached!")
+            return True
+
+        print("   Downloading from Hugging Face...")
+        print("   (Model size ~50–100 MB, should be quick)")
+
+        # Download model
+        EncoderClassifier.from_hparams(
+            source=model_repo,
+            savedir=local_dir,
+            use_auth_token=hf_token if hf_token else True
+        )
+
+        print("✅ Successfully downloaded ECAPA Voiceprint model")
+        return True
+
+    except Exception as e:
+        print(f"❌ Failed to download ECAPA Voiceprint model: {e}")
+        print("   Possible fixes:")
+        print("   1. Check internet connectivity")
+        print("   2. Verify Hugging Face access")
+        print("   3. Clear cache and retry")
+        return False
 
 def main():
     """Download all models"""
@@ -231,6 +279,7 @@ def main():
         "IndicParler TTS": download_indicparler_tts_model(),
         "Whisper STT": download_whisper_model(),
         "FastText": download_fasttext_model(),
+        "Voiceprint": download_voiceprint_models(),
     }
 
     # Summary
