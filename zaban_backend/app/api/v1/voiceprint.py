@@ -16,6 +16,7 @@ from app.schemas.voiceprint import (
     VerificationAttemptResponse,
 )
 from app.services.voiceprint.config import voiceprint_settings as settings
+from anyio import open_file
 
 router = APIRouter(prefix="/voiceprint", tags=["voiceprint"])
 
@@ -80,13 +81,13 @@ async def enroll_voiceprint(
             content = await file.read()
             # Save to temp file for processing
             temp_path = f"/tmp/{customer_id}_{file.filename}"
-            with open(temp_path, "wb") as f:
-                f.write(content)
+            async with await open_file(temp_path, "wb") as f:
+                await f.write(content)
             temp_files.append(temp_path)
             audio_data.append(temp_path)
 
         # Enroll in vector store
-        result = verifier.enroll_user(audio_data, str(customer_id))
+        result = await verifier.enroll_user(audio_data, str(customer_id))
         
         # Create new voiceprint record
         new_vp = Voiceprint(
@@ -138,13 +139,14 @@ async def verify_voiceprint(
     else:
         raise HTTPException(status_code=400, detail="No audio provided")
 
+
     temp_path = f"/tmp/verify_{customer_id}.wav"
     try:
-        with open(temp_path, "wb") as f:
-            f.write(audio_content)
+        async with await open_file(temp_path, "wb") as f:
+            await f.write(audio_content)
 
         # Verify
-        result = verifier.verify_speaker(temp_path, str(customer_id))
+        result = await verifier.verify_speaker(temp_path, str(customer_id))
         
         if result.get("error"):
             return VerificationResponse(
@@ -212,7 +214,7 @@ async def delete_voiceprint(
     # Check if any other VPs exist for this customer before deleting from vector store
     remaining = db.query(Voiceprint).filter(Voiceprint.customer_id == customer_id).count()
     if remaining == 0:
-        verifier.delete_user(customer_id)
+        await verifier.delete_user(customer_id)
     
     return {"status": "success", "message": "Voiceprint deleted"}
 

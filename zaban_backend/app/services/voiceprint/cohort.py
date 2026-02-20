@@ -15,7 +15,7 @@ def vector_to_list(vec: np.ndarray) -> list:
     return a.tolist()
 
 
-def get_top_k_cohort_vectors(
+async def get_top_k_cohort_vectors(
     qdrant_client: QdrantClient,
     query_emb: np.ndarray,
     k: int,
@@ -24,14 +24,14 @@ def get_top_k_cohort_vectors(
     Get top-K nearest vectors from cohort collection.
     
     Args:
-        qdrant_client: Qdrant client instance
+        qdrant_client: Qdrant client instance (AsyncQdrantClient)
         query_emb: Query embedding
         k: Number of nearest vectors to retrieve
         
     Returns:
         List of cohort embeddings as numpy arrays
     """
-    res = qdrant_client.query_points(
+    res = await qdrant_client.query_points(
         collection_name=settings.COHORT_COLLECTION,
         query=vector_to_list(query_emb),
         limit=k,
