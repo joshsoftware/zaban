@@ -16,7 +16,7 @@ class VoiceprintSettings(BaseSettings):
     COHORT_COLLECTION: str = "indian_cohort_ecapa"
     
     # Models
-    PLDA_MODEL_PATH: str = "./models/plda_model.pkl"
+    PLDA_MODEL_PATH: str = os.getenv("PLDA_MODEL_PATH", "./models/plda_model.pkl")
     ECAPA_SOURCE: str = "speechbrain/spkrec-ecapa-voxceleb"
     ECAPA_SAVEDIR: str = "./pretrained_models/spkrec-ecapa-voxceleb"
     
