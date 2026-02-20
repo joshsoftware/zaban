@@ -36,9 +36,7 @@ def get_verifier(request: Request):
 def _service_unavailable_response() -> JSONResponse:
     """Return a graceful response when voiceprint service is unavailable."""
     if not settings.VOICEPRINT_ENABLED:
-        msg = "Voiceprint service is disabled"
-    else:
-        msg = "Voiceprint service is not initialized"
+        msg = "Requested Service is disabled"
     return JSONResponse(
         status_code=503,
         content={"status": "unavailable", "message": msg}
