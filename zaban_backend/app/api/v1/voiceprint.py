@@ -38,6 +38,8 @@ def _service_unavailable_response() -> JSONResponse:
     """Return a graceful response when voiceprint service is unavailable."""
     if not settings.VOICEPRINT_ENABLED:
         msg = "Requested Service is disabled"
+    else:
+        msg = "Service unavailable"
     return JSONResponse(
         status_code=503,
         content={"status": "unavailable", "message": msg}
