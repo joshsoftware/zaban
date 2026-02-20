@@ -1,17 +1,28 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# CUDA runtime base image with cuDNN (for GPU acceleration)
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+# Avoid interactive prompts during build
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies (ffmpeg required by openai-whisper for audio decoding)
+# Install system dependencies + Python 3.11
 RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
     gcc \
     g++ \
     curl \
     postgresql-client \
     ffmpeg \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Make python3.11 the default python
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python3
 
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -26,15 +37,33 @@ COPY . .
 # Create venv and install dependencies
 RUN uv venv && \
     . .venv/bin/activate && \
-    uv pip install .
+    uv pip install . && \
+    uv pip install torch torchvision torchaudio \
+      --index-url https://download.pytorch.org/whl/cu121
 
 # Create directory for ML models cache
 RUN mkdir -p /app/.cache/huggingface
+RUN mkdir -p /root/.cache/zaban/models
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+# HuggingFace model cache (IndicTrans2, IndicParler TTS)
 ENV TRANSFORMERS_CACHE=/app/.cache/huggingface
 ENV HF_HOME=/app/.cache/huggingface
+# Whisper model cache
+ENV XDG_CACHE_HOME=/root/.cache
+# FastText model cache
+ENV FASTTEXT_CACHE_DIR=/root/.cache/zaban/models
+
+# Build argument for Hugging Face token (for gated models)
+ARG HUGGING_FACE_TOKEN
+ENV HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
+
+# Pre-download ML models during build (optional but recommended for production)
+# Models: IndicTrans2, IndicParler TTS, Whisper, FastText
+# Note: IndicParler TTS requires HF token and access approval
+RUN . .venv/bin/activate && \
+    python scripts/download_models.py || echo "⚠️  Some models failed to download, will retry at runtime"
 
 # Expose port 8000
 EXPOSE 8000

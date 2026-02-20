@@ -47,19 +47,26 @@ class IndicParlerTTSService:
             
             # Load model (using the AI4Bharat IndicParler model)
             model_name = os.getenv("INDICPARLER_MODEL", "ai4bharat/indic-parler-tts")
-            
+
             print(f"🔊 Loading TTS model: {model_name} on {self.device}...")
-            
+
+            # Get Hugging Face token if available (for gated models)
+            hf_token = os.getenv("HUGGING_FACE_TOKEN")
+
             # Use FP16 for faster inference on GPU
             torch_dtype = torch.float16 if self.device == "cuda" else torch.float32
-            
+
             self.model = ParlerTTSForConditionalGeneration.from_pretrained(
                 model_name,
-                torch_dtype=torch_dtype
+                torch_dtype=torch_dtype,
+                token=hf_token
             ).to(self.device)
-            
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.description_tokenizer = AutoTokenizer.from_pretrained(self.model.config.text_encoder._name_or_path)
+
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name, token=hf_token)
+            self.description_tokenizer = AutoTokenizer.from_pretrained(
+                self.model.config.text_encoder._name_or_path,
+                token=hf_token
+            )
 
             # Get sample rate from model config or default to 44100
             self.sample_rate = getattr(self.model.config, "sampling_rate", 44100)
