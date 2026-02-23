@@ -59,12 +59,45 @@ async def startup_event():
     from .services.voiceprint.config import voiceprint_settings
     if voiceprint_settings.VOICEPRINT_ENABLED:
         try:
+            print("🚀 Importing voiceprint verifier module...")
+            # Import at function level to catch import-time errors
             from .services.voiceprint.verifier import VoiceVerifierECAPA
-            print("🚀 Initializing voiceprint verifier...")
+            print("✅ Verifier module imported successfully")
+            print("🚀 Initializing voiceprint verifier instance...")
             app.state.voice_verifier = VoiceVerifierECAPA()
             print("✅ Voiceprint verifier initialized.")
+        except (TypeError, ImportError, AttributeError) as e:
+            error_str = str(e)
+            if "EnumTypeWrapper" in error_str or ("|" in error_str and "NoneType" in error_str):
+                import traceback
+                import sys
+                print("=" * 80)
+                print("⚠️  Voiceprint verifier initialization failed due to type annotation conflict")
+                print("=" * 80)
+                print(f"Error: {error_str}")
+                print("\nThis is a known issue with Python 3.11.0rc1 and qdrant-client < 1.11.0.")
+                print("The conflict occurs when qdrant-client uses '|' union syntax with Enum types.")
+                print("\n🔧 SOLUTION: Rebuild your Docker image to get the updated dependencies")
+                print("   Run: docker-compose build backend")
+                print("   Or:  cd zaban_backend && docker build -t zaban-backend .")
+                print("\nThe updated pyproject.toml requires qdrant-client>=1.11.0 which fixes this issue.")
+                print("\nAlternative solutions:")
+                print("  1. Upgrade Python to 3.11.9+ in Dockerfile")
+                print("  2. Temporarily disable voiceprint: set VOICEPRINT_ENABLED=false")
+                print("\nCurrent Python version:", sys.version)
+                print("=" * 80)
+                traceback.print_exc()
+            else:
+                import traceback
+                print(f"⚠️  Voiceprint verifier initialization failed: {e}")
+                print(f"Full traceback:")
+                traceback.print_exc()
+            app.state.voice_verifier = None
         except Exception as e:
+            import traceback
             print(f"⚠️  Voiceprint verifier initialization failed: {e}")
+            print(f"Full traceback:")
+            traceback.print_exc()
             app.state.voice_verifier = None
     else:
         print("ℹ️  Voiceprint service disabled (VOICEPRINT_ENABLED=false)")

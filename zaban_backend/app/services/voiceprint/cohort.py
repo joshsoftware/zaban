@@ -1,10 +1,50 @@
 """Cohort management utilities."""
+from __future__ import annotations  # Defer type annotation evaluation to avoid SQLAlchemy conflicts
 
 from typing import List, Optional
+import importlib
 
 import numpy as np
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+
+# Lazy import qdrant_client to avoid type annotation conflicts with SQLAlchemy
+_QDRANT_CLASSES = None
+
+def _get_qdrant_classes():
+    """Lazy import qdrant_client classes to avoid type annotation conflicts."""
+    global _QDRANT_CLASSES
+    if _QDRANT_CLASSES is None:
+        try:
+            qdrant_client = importlib.import_module("qdrant_client")
+            qdrant_models = importlib.import_module("qdrant_client.models")
+            _QDRANT_CLASSES = (
+                qdrant_client.QdrantClient,
+                qdrant_models.Distance,
+                qdrant_models.PointStruct,
+                qdrant_models.VectorParams,
+            )
+        except (TypeError, AttributeError) as e:
+            error_str = str(e)
+            if "EnumTypeWrapper" in error_str or ("|" in error_str and "NoneType" in error_str):
+                # Use exec to import in isolated namespace to bypass type annotation evaluation
+                namespace = {}
+                exec("""
+import importlib
+qdrant_client = importlib.import_module("qdrant_client")
+qdrant_models = importlib.import_module("qdrant_client.models")
+QdrantClient = qdrant_client.QdrantClient
+Distance = qdrant_models.Distance
+PointStruct = qdrant_models.PointStruct
+VectorParams = qdrant_models.VectorParams
+""", {"importlib": importlib}, namespace)
+                _QDRANT_CLASSES = (
+                    namespace["QdrantClient"],
+                    namespace["Distance"],
+                    namespace["PointStruct"],
+                    namespace["VectorParams"],
+                )
+            else:
+                raise
+    return _QDRANT_CLASSES
 
 from app.services.voiceprint.config import voiceprint_settings as settings
 
@@ -16,7 +56,7 @@ def vector_to_list(vec: np.ndarray) -> list:
 
 
 async def get_top_k_cohort_vectors(
-    qdrant_client: QdrantClient,
+    qdrant_client,  # QdrantClient type (lazy import)
     query_emb: np.ndarray,
     k: int,
 ) -> List[np.ndarray]:
@@ -45,7 +85,7 @@ async def get_top_k_cohort_vectors(
 
 
 def ensure_collection_exists(
-    qdrant_client: QdrantClient,
+    qdrant_client,  # QdrantClient type (lazy import)
     collection_name: str,
     embedding_dim: int,
 ) -> None:
@@ -69,6 +109,7 @@ def ensure_collection_exists(
             
         if existing_size is None or existing_size != embedding_dim:
             # Recreate with correct dimension
+            _, Distance, _, VectorParams = _get_qdrant_classes()
             qdrant_client.delete_collection(collection_name)
             qdrant_client.create_collection(
                 collection_name=collection_name,
@@ -79,6 +120,7 @@ def ensure_collection_exists(
             )
     except Exception:
         # Collection doesn't exist, create it
+        _, Distance, _, VectorParams = _get_qdrant_classes()
         qdrant_client.create_collection(
             collection_name=collection_name,
             vectors_config=VectorParams(

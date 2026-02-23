@@ -41,7 +41,7 @@ dependencies = [
   "speechbrain>=1.0.0",
   "scipy>=1.9.0",
   "librosa>=0.10.0",
-  "qdrant-client>=1.7.0",
+  "qdrant-client>=1.11.0",  # v1.11.0+ fixes EnumTypeWrapper | NoneType conflict
   "asyncpg>=0.29.0",
 ]
 
