@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies + Python 3.11 (python3.11-dev for C extension builds, e.g. indictranstoolkit)
+# Install system dependencies + Python 3.11 (python3.11-dev for C extension builds, e.g. IndicTransToolkit)
 RUN apt-get update && apt-get install -y \
     python3.11 \
     python3.11-dev \
