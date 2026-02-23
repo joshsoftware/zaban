@@ -35,35 +35,37 @@ class IndicParlerTTSService:
         """Lazy load the IndicParler model"""
         if self.model is not None:
             return
-        
+
         try:
             import torch
             from parler_tts import ParlerTTSForConditionalGeneration
             from transformers import AutoTokenizer
-            import soundfile as sf
-            
+
             # Determine device
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            
+
             # Load model (using the AI4Bharat IndicParler model)
             model_name = os.getenv("INDICPARLER_MODEL", "ai4bharat/indic-parler-tts")
-            
+
             print(f"🔊 Loading TTS model: {model_name} on {self.device}...")
-            
+
             # Use FP16 for faster inference on GPU
             torch_dtype = torch.float16 if self.device == "cuda" else torch.float32
-            
+
             self.model = ParlerTTSForConditionalGeneration.from_pretrained(
                 model_name,
                 torch_dtype=torch_dtype
             ).to(self.device)
-            
+            self.model.eval()
+
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.description_tokenizer = AutoTokenizer.from_pretrained(self.model.config.text_encoder._name_or_path)
+            self.description_tokenizer = AutoTokenizer.from_pretrained(
+                self.model.config.text_encoder._name_or_path
+            )
 
             # Get sample rate from model config or default to 44100
             self.sample_rate = getattr(self.model.config, "sampling_rate", 44100)
-            
+
             print(f"✅ TTS model loaded successfully (dtype={torch_dtype}, rate={self.sample_rate}Hz)")
             
         except ImportError as e:
@@ -76,45 +78,44 @@ class IndicParlerTTSService:
     
     def _chunk_text(self, text: str, language: str = "en", max_chars: int = 300) -> List[str]:
         """
-        Split text into chunks using IndicNLP for accurate sentence segmentation.
+        Split text into chunks. Short text (<= max_single) is returned as one chunk to avoid overhead.
         """
+        text = text.strip()
+        if not text:
+            return []
+
+        max_single = int(os.getenv("INDICPARLER_MAX_SINGLE_CHUNK", "120"))
+        if len(text) <= max_single and "\n" not in text:
+            return [text]
+
         try:
             from indicnlp.tokenize import sentence_tokenize
-            
-            # Use IndicNLP for splitting (robust for Indic languages)
-            # If language is 'en' or unsupported, it might differ, but generally safe for sentence splitting
             sentences = sentence_tokenize.sentence_split(text, lang=language)
         except Exception:
-            # Fallback to simple regex if IndicNLP fails or not available for language
-            # Split by common delimiters
             delimiters = r'[.?!\u0964\u06D4\n]+'
             parts = re.split(f'({delimiters})', text)
             sentences = []
             for i in range(0, len(parts) - 1, 2):
-                sentences.append((parts[i] + parts[i+1]).strip())
+                s = (parts[i] + parts[i + 1]).strip()
+                if s:
+                    sentences.append(s)
             if len(parts) % 2 != 0 and parts[-1].strip():
                 sentences.append(parts[-1].strip())
-        
+
         chunks = []
         current_chunk = ""
-        
         for sentence in sentences:
             sentence = sentence.strip()
             if not sentence:
                 continue
-                
-            # If adding this sentence exceeds max_chars, start new chunk
             if len(current_chunk) + len(sentence) + 1 > max_chars:
                 if current_chunk:
                     chunks.append(current_chunk.strip())
                 current_chunk = sentence
             else:
                 current_chunk = f"{current_chunk} {sentence}" if current_chunk else sentence
-        
-        # Add remaining part
         if current_chunk:
-             chunks.append(current_chunk.strip())
-             
+            chunks.append(current_chunk.strip())
         return chunks
 
     async def synthesize(
@@ -203,46 +204,46 @@ class IndicParlerTTSService:
         
         # Chunk the text to handle long inputs
         chunks = self._chunk_text(text, language=language)
-        print(f"Processing {len(chunks)} chunks for TTS...")
-        
+        if not chunks:
+            raise RuntimeError("No text chunks to synthesize")
+
+        # Precompute voice description tokens once (same for all chunks)
+        desc_ids = self.description_tokenizer(
+            voice_description, return_tensors="pt", padding=True, truncation=True
+        )
+        desc_ids = {k: v.to(self.device) for k, v in desc_ids.items()}
+
+        silence_duration = float(os.getenv("INDICPARLER_CHUNK_SILENCE_SEC", "0.2"))
         audio_segments = []
-        
+
         try:
-            for i, chunk in enumerate(chunks):
-                if not chunk.strip():
-                    continue
-                    
-                input_ids = self.description_tokenizer(voice_description, return_tensors="pt").to(self.device)
-                prompt_input_ids = self.tokenizer(chunk, return_tensors="pt").to(self.device)
-                
-                with torch.no_grad():
-                    generation = self.model.generate(
-                        input_ids=input_ids.input_ids,
-                        attention_mask=input_ids.attention_mask,
-                        prompt_input_ids=prompt_input_ids.input_ids,
-                        prompt_attention_mask=prompt_input_ids.attention_mask,
+            with torch.inference_mode():
+                for i, chunk in enumerate(chunks):
+                    if not chunk.strip():
+                        continue
+                    prompt_ids = self.tokenizer(
+                        chunk, return_tensors="pt", padding=True, truncation=True
                     )
-                
-                # Convert to numpy
-                audio_arr = generation.cpu().float().numpy().squeeze()
-                audio_segments.append(audio_arr)
-                
-                # Add 0.5s silence between chunks to ensure natural separation
-                if i < len(chunks) - 1:
-                    silence_duration = 0.5
-                    silence_samples = int(silence_duration * self.sample_rate)
-                    silence_arr = np.zeros(silence_samples, dtype=audio_arr.dtype)
-                    audio_segments.append(silence_arr)
-            
-            # Concatenate all audio segments
+                    prompt_ids = {k: v.to(self.device) for k, v in prompt_ids.items()}
+                    generation = self.model.generate(
+                        input_ids=desc_ids["input_ids"],
+                        attention_mask=desc_ids.get("attention_mask"),
+                        prompt_input_ids=prompt_ids["input_ids"],
+                        prompt_attention_mask=prompt_ids.get("attention_mask"),
+                    )
+                    audio_arr = generation.cpu().float().numpy().squeeze()
+                    audio_segments.append(audio_arr)
+                    if i < len(chunks) - 1 and silence_duration > 0:
+                        silence_samples = int(silence_duration * self.sample_rate)
+                        silence_arr = np.zeros(silence_samples, dtype=audio_arr.dtype)
+                        audio_segments.append(silence_arr)
+
             if not audio_segments:
                 raise RuntimeError("No audio generated from text chunks")
-                
             final_audio = np.concatenate(audio_segments)
-            
-            # Write to bytes buffer
+
             buffer = io.BytesIO()
-            sf.write(buffer, final_audio, self.sample_rate, format='WAV')
+            sf.write(buffer, final_audio, self.sample_rate, format="WAV")
             audio_data = buffer.getvalue()
             
             return TTSResult(

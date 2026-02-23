@@ -234,6 +234,7 @@ export const transcribeAudio = async (
  * @param sourceLang - Source language code (optional, will be auto-detected if not provided)
  * @param targetLang - Target language code (required)
  * @param autoDetect - Enable auto-detection of source language
+ * @param includeAudio - If true, response includes TTS audio (audio_base64, audio_content_type, audio_sample_rate)
  */
 export interface TranslationResponse {
   translated_text: string;
@@ -241,13 +242,18 @@ export interface TranslationResponse {
   target_lang: string;
   model?: string;
   auto_detected?: boolean;
+  /** Base64-encoded WAV when include_audio=true */
+  audio_base64?: string;
+  audio_content_type?: string;
+  audio_sample_rate?: number;
 }
 
 export const translateText = async (
   text: string,
   targetLang: string,
   sourceLang?: string,
-  autoDetect: boolean = false
+  autoDetect: boolean = false,
+  includeAudio: boolean = false
 ): Promise<TranslationResponse> => {
   try {
     interface TranslateRequestBody {
@@ -255,6 +261,7 @@ export const translateText = async (
       target_lang: string;
       source_lang?: string;
       auto_detect?: boolean;
+      include_audio?: boolean;
     }
 
     const requestBody: TranslateRequestBody = {
@@ -268,6 +275,10 @@ export const translateText = async (
 
     if (autoDetect || !sourceLang) {
       requestBody.auto_detect = true;
+    }
+
+    if (includeAudio) {
+      requestBody.include_audio = true;
     }
 
     const response = await makeApiRequestWithKey("/translate", {

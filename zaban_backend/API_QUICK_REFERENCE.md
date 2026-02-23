@@ -50,6 +50,36 @@ curl -X POST http://localhost:8000/api/v1/translate \
   -d '{"text":"Hello","source_lang":"eng_Latn","target_lang":"hin_Deva"}'
 ```
 
+### Translation with audio (include_audio: true)
+Response is JSON with `audio_base64` (base64-encoded WAV).
+
+**Play the audio from Postman:** In the request’s **Tests** tab, add:
+```javascript
+const j = pm.response.json();
+
+pm.test("Status is success", function () {
+  pm.response.to.have.status(200);
+});
+pm.test("Response has translation or audio", function () {
+  pm.expect(j.translated_text || j.audio_base64).to.be.ok;
+});
+
+if (j.audio_base64) {
+  const dataUrl = "data:audio/wav;base64," + j.audio_base64;
+  pm.visualizer.set(`
+    <p><strong>Translation:</strong> ${j.translated_text || ''}</p>
+    <audio controls src="${dataUrl}"></audio>
+    <p><a href="${dataUrl}" target="_blank" rel="noopener">Open / play in browser</a></p>
+  `);
+  pm.environment.set("audio_play_url", dataUrl);
+}
+```
+Then **Send** the request.
+
+- **Option A – Visualize tab:** In the **response** section (bottom half), open the **Body** tab. Above the response body you should see view options: **Pretty** | **Raw** | **Preview** | **Visualize**. Click **Visualize** to see the player and the “Open / play in browser” link.
+- **Option B – Play in browser (no Visualize needed):** After sending, go to **Environments** → select your environment → find **audio_play_url**. Copy its value (the long `data:audio/wav;base64,...` string), paste it into your **browser’s address bar**, and press Enter. The browser will play the audio.
+- **Option C – Decode online:** Copy the `audio_base64` value from the **Body** (Pretty view), go to [base64.guru/convert/decode/audio](https://base64.guru/convert/decode/audio), paste, decode, then download the WAV and play it.
+
 ### TTS
 ```bash
 curl -X POST http://localhost:8000/api/v1/tts \
