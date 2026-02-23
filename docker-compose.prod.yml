@@ -12,10 +12,19 @@ services:
 
   # Backend - Production Configuration
   backend:
+    build:
+      context: ./zaban_backend
+      dockerfile: Dockerfile.prod
+      args:
+        HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
       NODE_ENV: production
       PYTHONUNBUFFERED: 1
+      # NVIDIA GPU
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     restart: always
     deploy:
       resources:
@@ -25,9 +34,16 @@ services:
         reservations:
           cpus: '1'
           memory: 2G
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on: []
     volumes:
-      - /data/ml_models:/app/.cache/huggingface
+      # Production model caches (host paths for persistence)
+      - /data/ml_models/huggingface:/app/.cache/huggingface
+      - /data/ml_models/whisper:/root/.cache/whisper
+      - /data/ml_models/fasttext:/root/.cache/zaban/models
 
   # Frontend - Production Configuration  
   frontend:

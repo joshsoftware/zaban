@@ -15,6 +15,7 @@ from .api.v1 import router as v1_router
 from .routes import auth as auth_routes
 
 
+
 app = FastAPI(title="AI4Bharat FastAPI Backend", version="0.1.0")
 
 """CORS configuration for browser-based clients (e.g., HTML tester).
@@ -53,6 +54,20 @@ async def startup_event():
     except Exception as e:
         print(f"⚠️  openai-whisper preload failed: {e}")
         print("   Model will be loaded on first request (slower)")
+
+    # Initialize voiceprint verifier
+    from .services.voiceprint.config import voiceprint_settings
+    if voiceprint_settings.VOICEPRINT_ENABLED:
+        try:
+            from .services.voiceprint.verifier import VoiceVerifierECAPA
+            print("🚀 Initializing voiceprint verifier...")
+            app.state.voice_verifier = VoiceVerifierECAPA()
+            print("✅ Voiceprint verifier initialized.")
+        except Exception as e:
+            print(f"⚠️  Voiceprint verifier initialization failed: {e}")
+            app.state.voice_verifier = None
+    else:
+        print("ℹ️  Voiceprint service disabled (VOICEPRINT_ENABLED=false)")
 
 
 @app.get("/up")

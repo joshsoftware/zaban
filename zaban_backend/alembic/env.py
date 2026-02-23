@@ -7,6 +7,7 @@ from alembic import context
 from app.db.database import Base
 from app.models.user import User  # ensure model is imported
 from app.models.password_reset_token import PasswordResetToken  # ensure model is imported
+from app.models.voiceprint import Voiceprint, VerificationAttempt  # ensure model is imported
 
 # Load environment variables from .env file
 load_dotenv()
