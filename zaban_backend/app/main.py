@@ -45,12 +45,8 @@ async def startup_event():
         if os.getenv("PRELOAD_WHISPER", "true").lower() == "true":
             from .services.faster_whisper_stt import get_faster_whisper_stt_service
             model_name = os.getenv("WHISPER_MODEL", "medium")
-            print(f"🚀 Preloading openai-whisper model '{model_name}' at startup...")
             service = get_faster_whisper_stt_service()
             service.load_model(model_name)
-            print(f"✅ openai-whisper preloaded. Ready for all languages.")
-        else:
-            print("ℹ️  openai-whisper preload disabled (PRELOAD_WHISPER=false)")
     except Exception as e:
         print(f"⚠️  openai-whisper preload failed: {e}")
         print("   Model will be loaded on first request (slower)")
@@ -59,12 +55,18 @@ async def startup_event():
     from .services.voiceprint.config import voiceprint_settings
     if voiceprint_settings.VOICEPRINT_ENABLED:
         try:
+            # Import at function level to catch import-time errors
             from .services.voiceprint.verifier import VoiceVerifierECAPA
-            print("🚀 Initializing voiceprint verifier...")
             app.state.voice_verifier = VoiceVerifierECAPA()
             print("✅ Voiceprint verifier initialized.")
+        except (TypeError, ImportError, AttributeError) as e:
+            error_str = str(e)
+            app.state.voice_verifier = None
         except Exception as e:
+            import traceback
             print(f"⚠️  Voiceprint verifier initialization failed: {e}")
+            print(f"Full traceback:")
+            traceback.print_exc()
             app.state.voice_verifier = None
     else:
         print("ℹ️  Voiceprint service disabled (VOICEPRINT_ENABLED=false)")

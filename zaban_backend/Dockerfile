@@ -39,6 +39,7 @@ COPY . .
 RUN uv venv && \
     . .venv/bin/activate && \
     uv pip install . && \
+    uv pip install --upgrade "qdrant-client>=1.11.0" && \
     uv pip install torch torchvision torchaudio
 
 # Create directory for ML models cache
