@@ -25,6 +25,8 @@ services:
       # NVIDIA GPU
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: always
     deploy:
       resources:
