@@ -1,4 +1,5 @@
 version: "3.9"
+# Dev: CPU backend. For GPU use docker-compose.prod.yml (Dockerfile.prod).
 
 services:
   # PostgreSQL Database (for development only)
@@ -22,7 +23,7 @@ services:
       - zaban-network
     restart: unless-stopped
 
-  # Backend API (GPU enabled)
+  # Backend API (CPU)
   backend:
     build:
       context: ./zaban_backend
@@ -35,8 +36,6 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/zaban_backend_development}
       HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
       - "8000:8000"
     depends_on:
@@ -50,13 +49,6 @@ services:
     networks:
       - zaban-network
     restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
 
   # Frontend
   frontend:
