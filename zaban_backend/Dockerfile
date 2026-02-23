@@ -1,8 +1,7 @@
-# Dockerfile: choose CPU, CUDA, or MPS (Mac) to reduce image size and build time.
+# Dockerfile: CPU (default) or CUDA target. For GPU in production use Dockerfile.prod.
 # Build:
-#   CPU/MPS (default, fastest):  docker build --target cpu -t zaban-backend .
-#   CUDA (NVIDIA GPU):          docker build --target cuda -t zaban-backend .
-# MPS runs on Apple Silicon only; in Docker we use the CPU image (same as cpu target).
+#   CPU/MPS (default):  docker build --target cpu -t zaban-backend .
+#   CUDA (NVIDIA GPU):  docker build --target cuda -t zaban-backend .
 
 # -----------------------------------------------------------------------------
 # Stage: cuda — for developers with NVIDIA GPU (same base as prod)
@@ -69,8 +68,6 @@ ARG HUGGING_FACE_TOKEN
 ENV HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
 
 # Pre-download ML models during build (optional; will retry at runtime if needed)
-# Models: IndicTrans2, IndicParler TTS, Whisper, FastText
-# Note: IndicParler TTS requires HF token and access approval
 RUN . .venv/bin/activate && \
     python scripts/download_models.py || echo "⚠️  Some models failed to download, will retry at runtime"
 
@@ -124,7 +121,7 @@ COPY pyproject.toml uv.lock ./
 # Copy application code (needed for editable install)
 COPY . .
 
-# Create venv and install dependencies (CPU torch; use for CPU or MPS/Apple Silicon in Docker)
+# Create venv and install dependencies (CPU torch)
 RUN uv venv && \
     . .venv/bin/activate && \
     uv pip install . && \
@@ -149,8 +146,6 @@ ARG HUGGING_FACE_TOKEN
 ENV HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
 
 # Pre-download ML models during build (optional; will retry at runtime if needed)
-# Models: IndicTrans2, IndicParler TTS, Whisper, FastText
-# Note: IndicParler TTS requires HF token and access approval
 RUN . .venv/bin/activate && \
     python scripts/download_models.py || echo "⚠️  Some models failed to download, will retry at runtime"
 

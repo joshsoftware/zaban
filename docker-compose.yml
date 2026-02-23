@@ -1,5 +1,5 @@
 version: "3.9"
-# Backend: CPU by default. Use ./compose.sh to auto-detect GPU; or -f docker-compose.gpu.yml for NVIDIA.
+# Dev: CPU backend. For GPU use docker-compose.prod.yml (Dockerfile.prod).
 
 services:
   # PostgreSQL Database (for development only)
@@ -23,7 +23,7 @@ services:
       - zaban-network
     restart: unless-stopped
 
-  # Backend API (CPU by default; use docker-compose.gpu.yml for NVIDIA GPU)
+  # Backend API (CPU)
   backend:
     build:
       context: ./zaban_backend
