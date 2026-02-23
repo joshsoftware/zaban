@@ -21,7 +21,7 @@ def upgrade() -> None:
     # Drop legacy table if exists
     op.execute("DROP TABLE IF EXISTS voiceprint_users CASCADE")
 
-    # Create voiceprints table
+    # Create voiceprints table with all required columns
     op.create_table(
         'voiceprints',
         sa.Column('id', psql.UUID(as_uuid=True), primary_key=True, nullable=False),
@@ -31,7 +31,10 @@ def upgrade() -> None:
         sa.Column('last_verified_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     )
+    
+    # Create indexes and constraints for voiceprints table
     op.create_index('ix_voiceprints_qdrant_vector_id', 'voiceprints', ['qdrant_vector_id'], unique=True)
+    # Unique constraint automatically creates a unique index, so no separate index needed
     op.create_unique_constraint('uq_voiceprints_customer_id', 'voiceprints', ['customer_id'])
 
     # Create verification_attempts table
@@ -45,10 +48,19 @@ def upgrade() -> None:
         sa.Column('count', sa.Integer(), nullable=False, server_default=sa.text('0')),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     )
+    
+    # Create indexes for verification_attempts table
     op.create_index('ix_verification_attempts_created_at', 'verification_attempts', ['created_at'], unique=False)
     op.create_index('ix_verification_attempts_voiceprint_id', 'verification_attempts', ['voiceprint_id'], unique=False)
 
 
 def downgrade() -> None:
+    # Drop verification_attempts table and its indexes
+    op.drop_index('ix_verification_attempts_voiceprint_id', table_name='verification_attempts')
+    op.drop_index('ix_verification_attempts_created_at', table_name='verification_attempts')
     op.drop_table('verification_attempts')
+    
+    # Drop voiceprints table and its indexes/constraints
+    op.drop_constraint('uq_voiceprints_customer_id', 'voiceprints', type_='unique')
+    op.drop_index('ix_voiceprints_qdrant_vector_id', table_name='voiceprints')
     op.drop_table('voiceprints')

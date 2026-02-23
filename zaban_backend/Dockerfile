@@ -1,6 +1,6 @@
 # CUDA runtime base image with cuDNN (for GPU acceleration)
-# FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
-FROM ubuntu:22.04
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+# FROM ubuntu:22.04
 
 # Avoid interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
