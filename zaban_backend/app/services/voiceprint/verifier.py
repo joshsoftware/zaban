@@ -6,7 +6,6 @@ Detailed voice verifier module that handles:
 - Speaker verification using PLDA scoring and AS-Norm normalization
 - Cohort management for score normalization
 """
-from __future__ import annotations  # Defer type annotation evaluation to avoid SQLAlchemy conflicts
 
 import hashlib
 import pickle
@@ -15,60 +14,15 @@ from typing import Dict, List, Optional, Union
 import asyncio
 import concurrent.futures
 import numpy as np
-import importlib
-
-# Lazy import qdrant_client to avoid type annotation conflicts with SQLAlchemy
-# This is a workaround for the "EnumTypeWrapper | NoneType" error that occurs
-# when SQLAlchemy and qdrant-client are both imported at module level
-# We'll import them inside functions/methods when actually needed
-_QDRANT_CLIENT = None
-_ASYNC_QDRANT_CLIENT = None
-_POINT_STRUCT = None
-
-def _get_qdrant_classes():
-    """
-    Lazy import qdrant_client classes to avoid type annotation conflicts.
-    
-    This function handles the EnumTypeWrapper | NoneType conflict that occurs
-    when SQLAlchemy and qdrant-client are both imported. The conflict happens
-    because Python 3.11.0rc1 has a bug with the | operator for Enum types.
-    
-    The fix is to ensure qdrant-client>=1.11.0 is installed (handled in Dockerfile).
-    """
-    global _QDRANT_CLIENT, _ASYNC_QDRANT_CLIENT, _POINT_STRUCT
-    if _QDRANT_CLIENT is None:
-        # Try normal import first
-        try:
-            qdrant_client = importlib.import_module("qdrant_client")
-            qdrant_models = importlib.import_module("qdrant_client.models")
-            _QDRANT_CLIENT = getattr(qdrant_client, "QdrantClient")
-            _ASYNC_QDRANT_CLIENT = getattr(qdrant_client, "AsyncQdrantClient")
-            _POINT_STRUCT = getattr(qdrant_models, "PointStruct")
-            return _QDRANT_CLIENT, _ASYNC_QDRANT_CLIENT, _POINT_STRUCT
-        except (TypeError, AttributeError, ImportError) as e:
-            error_str = str(e)
-            if "EnumTypeWrapper" in error_str or ("|" in error_str and "NoneType" in error_str):
-                # The error occurs during module import due to type annotation evaluation
-                # This is a known issue with Python 3.11.0rc1 and qdrant-client < 1.11.0
-                raise ImportError(
-                    f"Failed to import qdrant_client due to EnumTypeWrapper conflict.\n"
-                    f"Error: {error_str}\n\n"
-                    f"This is a known issue with Python 3.11.0rc1 and qdrant-client < 1.11.0.\n"
-                    f"SOLUTION: Rebuild Docker image to install qdrant-client>=1.11.0:\n"
-                    f"  docker-compose build backend\n\n"
-                    f"Alternative: Temporarily disable voiceprint service by setting VOICEPRINT_ENABLED=false"
-                ) from e
-            else:
-                raise
-    return _QDRANT_CLIENT, _ASYNC_QDRANT_CLIENT, _POINT_STRUCT
+from qdrant_client import QdrantClient, AsyncQdrantClient
+from qdrant_client.models import PointStruct
 
 from app.services.voiceprint.config import voiceprint_settings as settings
-# Lazy import cohort to avoid qdrant-client import conflicts
-# from app.services.voiceprint.cohort import (
-#     ensure_collection_exists,
-#     get_top_k_cohort_vectors,
-#     vector_to_list,
-# )
+from app.services.voiceprint.cohort import (
+    ensure_collection_exists,
+    get_top_k_cohort_vectors,
+    vector_to_list,
+)
 from app.services.voiceprint.plda import (
     compute_as_norm_score,
     compute_cohort_plda_scores,
@@ -107,18 +61,15 @@ class VoiceVerifierECAPA:
         self._embedder = ECAPAEmbedder(savedir=ecapa_savedir, device=device)
         self.embedding_dim = self._embedder.embedding_dim
         
-        # Initialize Qdrant client (lazy import to avoid type annotation conflicts)
+        # Initialize Qdrant client
         qdrant_host = qdrant_host or settings.QDRANT_HOST
         qdrant_port = qdrant_port or settings.QDRANT_PORT
         print(f"Connecting to Qdrant at {qdrant_host}:{qdrant_port}...")
         
-        # Get Qdrant classes (lazy import)
-        QdrantClientClass, AsyncQdrantClientClass, _ = _get_qdrant_classes()
-        
         # Keep sync client for initialization/management if needed, 
         # but primarily we use async client for operations.
-        self.qdrant_client = QdrantClientClass(host=qdrant_host, port=qdrant_port)
-        self.async_client = AsyncQdrantClientClass(host=qdrant_host, port=qdrant_port)
+        self.qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port)
+        self.async_client = AsyncQdrantClient(host=qdrant_host, port=qdrant_port)
         
         # Executor for CPU-bound tasks
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
@@ -132,8 +83,6 @@ class VoiceVerifierECAPA:
 
     def _init_collections(self) -> None:
         """Initialize Qdrant collections for enrolled users and cohort."""
-        # Lazy import to avoid conflicts
-        from app.services.voiceprint.cohort import ensure_collection_exists
         for name in [settings.ENROLLED_COLLECTION, settings.COHORT_COLLECTION]:
             try:
                 ensure_collection_exists(self.qdrant_client, name, self.embedding_dim)
@@ -189,13 +138,11 @@ class VoiceVerifierECAPA:
         # Generate point ID from customer_id
         point_id = int(hashlib.sha256(customer_id.encode()).hexdigest()[:15], 16) % (2**63)
         
-        # Upsert to Qdrant (lazy import to avoid conflicts)
-        from app.services.voiceprint.cohort import vector_to_list
-        _, _, PointStructClass = _get_qdrant_classes()
+        # Upsert to Qdrant
         await self.async_client.upsert(
             collection_name=settings.ENROLLED_COLLECTION,
             points=[
-                PointStructClass(
+                PointStruct(
                     id=point_id,
                     vector=vector_to_list(centroid),
                     payload={"customer_id": customer_id, "num_samples": len(audio_paths)},
@@ -267,8 +214,6 @@ class VoiceVerifierECAPA:
         
         
         # Get cohort vectors for AS-Norm (Async Qdrant)
-        # Lazy import to avoid conflicts
-        from app.services.voiceprint.cohort import get_top_k_cohort_vectors
         
         t0 = time.time()
         # Run both queries concurrently

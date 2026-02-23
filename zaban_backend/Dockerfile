@@ -19,24 +19,11 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     ffmpeg \
     ca-certificates \
-    && add-apt-repository ppa:deadsnakes/ppa -y \
-    && apt-get update \
-    && apt-get install -y \
-    python3.11 \
-    python3.11-venv \
-    python3.11-dev \
-    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Make python3.11 the default python and verify version
-# Note: If Python version is < 3.11.9, you may encounter EnumTypeWrapper issues.
-# The updated qdrant-client>=1.11.0 should help, but Python 3.11.9+ is recommended.
+# Make python3.11 the default python
 RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
-    ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
-    echo "Python version:" && \
-    python --version && \
-    python3 --version && \
-    python3.11 --version
+    ln -sf /usr/bin/python3.11 /usr/bin/python3
 
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -52,6 +39,7 @@ COPY . .
 RUN uv venv && \
     . .venv/bin/activate && \
     uv pip install . && \
+    uv pip install --upgrade "qdrant-client>=1.11.0" && \
     uv pip install torch torchvision torchaudio
 
 # Create directory for ML models cache

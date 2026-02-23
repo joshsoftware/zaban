@@ -75,17 +75,6 @@ async def startup_event():
                 print("⚠️  Voiceprint verifier initialization failed due to type annotation conflict")
                 print("=" * 80)
                 print(f"Error: {error_str}")
-                print("\nThis is a known issue with Python 3.11.0rc1 and qdrant-client < 1.11.0.")
-                print("The conflict occurs when qdrant-client uses '|' union syntax with Enum types.")
-                print("\n🔧 SOLUTION: Rebuild your Docker image to get the updated dependencies")
-                print("   Run: docker-compose build backend")
-                print("   Or:  cd zaban_backend && docker build -t zaban-backend .")
-                print("\nThe updated pyproject.toml requires qdrant-client>=1.11.0 which fixes this issue.")
-                print("\nAlternative solutions:")
-                print("  1. Upgrade Python to 3.11.9+ in Dockerfile")
-                print("  2. Temporarily disable voiceprint: set VOICEPRINT_ENABLED=false")
-                print("\nCurrent Python version:", sys.version)
-                print("=" * 80)
                 traceback.print_exc()
             else:
                 import traceback
