@@ -12,6 +12,11 @@ services:
 
   # Backend - Production Configuration
   backend:
+    build:
+      context: ./zaban_backend
+      dockerfile: Dockerfile.prod
+      args:
+        HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
     environment:
       DATABASE_URL: ${DATABASE_URL}
       HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}

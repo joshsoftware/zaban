@@ -1,0 +1,22 @@
+# GPU override: merged automatically by ./compose.sh when NVIDIA runtime is detected.
+# Manual: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# See: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/
+
+services:
+  backend:
+    build:
+      context: ./zaban_backend
+      dockerfile: Dockerfile
+      target: cuda
+      args:
+        HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN:-}
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
