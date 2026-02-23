@@ -27,7 +27,8 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from app.services.voiceprint.config import voiceprint_settings as settings
-from app.services.voiceprint.cohort import vector_to_list
+from app.services.voiceprint.cohort import vector_to_list, ensure_collection_exists
+from app.services.voiceprint.utils.embeddings import ECAPAEmbedder
 
 # Default data directory (app/data/)
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -96,10 +97,9 @@ def seed_from_parquet(
     import pandas as pd
     from tqdm import tqdm
     from app.services.voiceprint.utils.audio import decode_audio_from_bytes, to_16k_mono
-    from app.services.voiceprint.verifier import VoiceVerifierECAPA
 
-    print("🔧 Loading verifier (ECAPA + PLDA)...")
-    verifier = VoiceVerifierECAPA()
+    print("🔧 Loading ECAPA embedder...")
+    embedder = ECAPAEmbedder()
 
     total = 0
     err_count = 0
@@ -130,7 +130,8 @@ def seed_from_parquet(
                     continue
                 audio_array, sr = decode_audio_from_bytes(audio_data["bytes"])
                 audio_16k = to_16k_mono(audio_array, sr)
-                emb = verifier.extract_embedding(audio_16k)
+                # Synchronous embedding extraction (returns numpy array, not coroutine)
+                emb = embedder.extract_embedding(audio_16k, sample_rate=16000)
                 point_id = abs(hash(f"{parquet_path}_{idx}")) % (2**63)
                 client.upsert(
                     collection_name=collection,
