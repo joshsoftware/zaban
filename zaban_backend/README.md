@@ -12,18 +12,34 @@ This is the backend for the Zaban platform, built with Python FastAPI. It handle
 
 ### 1. Installation
 
-Install dependencies using `uv`:
+Install dependencies using `uv` (uses `uv.lock` for reproducible installs):
 
 ```bash
-# Create virtual environment
+# Recommended: create venv first, then sync from lockfile
 uv venv
+uv sync
 
-# Activate virtual environment
+# Or, install in editable mode without using the lockfile
+uv venv
 source .venv/bin/activate
-
-# Install dependencies in editable mode
 uv pip install -e .
 ```
+
+To **add a new dependency**, prefer letting `uv` update both `pyproject.toml` and `uv.lock` for you:
+
+```bash
+uv add PACKAGE_NAME
+```
+
+This will update `pyproject.toml` and refresh `uv.lock` in one step.
+
+If you edit `pyproject.toml` manually, or want to refresh the lockfile, run **`uv lock`** and commit `uv.lock`. You can do that **via Docker** (no local uv needed) from the **repo root**:
+
+```bash
+docker compose run --rm -v "$(pwd)/zaban_backend:/app" -w /app backend uv lock
+```
+
+Then commit the updated `zaban_backend/uv.lock` and rebuild.
 
 ### 2. Environment Configuration
 

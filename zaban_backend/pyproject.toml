@@ -49,6 +49,8 @@ dependencies = [
 
 [tool.uv]
 index-url = "https://pypi.org/simple"
+environments = ["python_full_version == '3.11.*'"]
+# After adding or changing dependencies in [project.dependencies], run: uv lock
 
 [tool.setuptools]
 packages = ["app"]
