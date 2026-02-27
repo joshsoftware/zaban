@@ -29,16 +29,15 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
-# Copy dependency files
+# Copy dependency files and application code
 COPY pyproject.toml uv.lock ./
 
 # Copy application code (needed for editable install)
 COPY . .
 
-# Create venv and install dependencies
-RUN uv venv && \
+# Install from developer-maintained lockfile, then install GPU-enabled torch/torchaudio
+RUN uv sync --frozen --no-dev && \
     . .venv/bin/activate && \
-    uv pip install . && \
     uv pip install torch torchvision torchaudio \
       --index-url https://download.pytorch.org/whl/cu121
 

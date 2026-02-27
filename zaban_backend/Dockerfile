@@ -29,18 +29,16 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python && \
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
-# Copy dependency files
+# Copy dependency files and app
 COPY pyproject.toml uv.lock ./
 
 # Copy application code (needed for editable install)
 COPY . .
 
-# Create venv and install dependencies (CPU torch)
+# Create venv and install dependencies using uv.lock
 RUN uv venv && \
     . .venv/bin/activate && \
-    uv pip install . && \
-    uv pip install --upgrade "qdrant-client>=1.11.0" && \
-    uv pip install torch torchvision torchaudio
+    uv sync --frozen --no-dev
 
 # Create directory for ML models cache
 RUN mkdir -p /app/.cache/huggingface

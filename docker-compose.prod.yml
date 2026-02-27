@@ -49,6 +49,9 @@ services:
 
   # Frontend - Production Configuration  
   frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     environment:
       NEXT_PUBLIC_EXTERNAL_API_URL: ${NEXT_PUBLIC_EXTERNAL_API_URL}
       NODE_ENV: production
