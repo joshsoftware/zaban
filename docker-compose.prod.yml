@@ -53,12 +53,15 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    depends_on: []
+    depends_on:
+      - postgres
     volumes:
       # Production model caches (host paths for persistence)
       - /data/ml_models/huggingface:/app/.cache/huggingface
       - /data/ml_models/whisper:/root/.cache/whisper
       - /data/ml_models/fasttext:/root/.cache/zaban/models
+    networks:
+      - zaban-network
 
   # Frontend - Production Configuration  
   frontend:
@@ -77,6 +80,8 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+    networks:
+      - zaban-network
 
 volumes:
   postgres_data:
