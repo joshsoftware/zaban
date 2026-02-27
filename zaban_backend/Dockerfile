@@ -38,7 +38,7 @@ COPY . .
 # Create venv and install dependencies using uv.lock
 RUN uv venv && \
     . .venv/bin/activate && \
-    uv sync --no-dev
+    uv sync --frozen --no-dev
 
 # Create directory for ML models cache
 RUN mkdir -p /app/.cache/huggingface
