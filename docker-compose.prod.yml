@@ -2,13 +2,26 @@
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 services:
-  # Disable local PostgreSQL (using RDS instead)
+  # PostgreSQL Database (local, same as dev)
   postgres:
-    image: alpine:latest
-    command: echo "Using external RDS database"
-    restart: "no"
-    deploy:
-      replicas: 0
+    image: postgres:14-alpine
+    container_name: zaban2-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: zaban_backend_development
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zaban-network
+    restart: unless-stopped
 
   # Backend - Production Configuration
   backend:
