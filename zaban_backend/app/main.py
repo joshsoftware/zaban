@@ -18,18 +18,11 @@ from .routes import auth as auth_routes
 
 app = FastAPI(title="AI4Bharat FastAPI Backend", version="0.1.0")
 
-"""CORS configuration for browser-based clients (e.g., HTML tester).
-- allow_origins: set to '*' for simplicity during development
-- allow_credentials: keep False when using '*' (per CORS spec)
-"""
+# CORS – allow all origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://frontend:3000",  # Docker container name
-        "http://127.0.0.1:3000",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
