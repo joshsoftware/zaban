@@ -245,11 +245,11 @@ def download_voiceprint_models():
         print("   Downloading from Hugging Face...")
         print("   (Model size ~50–100 MB, should be quick)")
 
-        # Download model
+        # Download model (spkrec-ecapa-voxceleb is public; token only needed if set)
         EncoderClassifier.from_hparams(
             source=model_repo,
             savedir=local_dir,
-            use_auth_token=hf_token if hf_token else True
+            use_auth_token=hf_token if hf_token else False
         )
 
         print("✅ Successfully downloaded ECAPA Voiceprint model")

@@ -55,14 +55,12 @@ ENV XDG_CACHE_HOME=/root/.cache
 # FastText model cache
 ENV FASTTEXT_CACHE_DIR=/root/.cache/zaban/models
 
-# Build argument for Hugging Face token (for gated models)
-ARG HUGGING_FACE_TOKEN
-ENV HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
-
 # Pre-download ML models during build (optional but recommended for production)
 # Models: IndicTrans2, IndicParler TTS, Whisper, FastText
 # Note: IndicParler TTS requires HF token and access approval
+# Load HUGGING_FACE_TOKEN from .env file (copied above via COPY . .)
 RUN . .venv/bin/activate && \
+    set -a && [ -f .env ] && . .env; set +a && \
     python scripts/download_models.py || echo "⚠️  Some models failed to download, will retry at runtime"
 
 # Expose port 8000
