@@ -16,12 +16,7 @@ services:
     restart: always
     deploy:
       resources:
-        limits:
-          cpus: '2'
-          memory: 4G
         reservations:
-          cpus: '1'
-          memory: 2G
           devices:
             - driver: nvidia
               count: all
@@ -42,14 +37,7 @@ services:
     env_file:
       - ./frontend/.env
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
+    deploy: {}
     networks:
       - zaban-network
 
