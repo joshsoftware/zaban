@@ -7,6 +7,8 @@ services:
     build:
       context: ./zaban_backend
       dockerfile: Dockerfile.prod
+      args:
+        HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN}
     env_file:
       - ./zaban_backend/.env
     extra_hosts:
