@@ -191,6 +191,15 @@ class FasterWhisperSttService:
                 "task": task,
                 "verbose": False,
             }
+            # Improve auto language detection accuracy (same approach as reference + best practices):
+            # - Do not condition on previous text so detection is not biased by prior context.
+            # - Use temperature=0 for deterministic decoding so language detection is stable.
+            # - Use beam search when auto-detecting for more consistent language decode.
+            if lang_arg is None:
+                transcribe_kw["condition_on_previous_text"] = False
+                transcribe_kw["temperature"] = 0
+                transcribe_kw["beam_size"] = WHISPER_BEAM_SIZE
+                transcribe_kw["best_of"] = WHISPER_BEST_OF
             # Add beam search options for translation to improve quality
             if translate_to_english:
                 transcribe_kw["beam_size"] = WHISPER_BEAM_SIZE
@@ -219,6 +228,7 @@ class FasterWhisperSttService:
                 for s in raw_segments
             ]
             full_text = (result.get("text") or "").strip()
+            # Language from decoding result (same as reference: getattr(info, "language", None) or "en")
             detected_lang = result.get("language") or lang_arg or "en"
             bcp47_lang = self.WHISPER_TO_BCP47.get(detected_lang, f"{detected_lang}_Latn")
             
