@@ -1,0 +1,49 @@
+version: "3.9"
+# Production configuration with AWS RDS (CPU backend)
+# Usage: docker compose -f docker-compose.prod-cpu.yml up -d
+
+services:
+  # Backend - Production Configuration (CPU)
+  backend:
+    build:
+      context: ./zaban_backend
+      dockerfile: Dockerfile
+      args:
+        HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN}
+    container_name: zaban-backend-cpu
+    env_file:
+      - ./zaban_backend/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    restart: always
+    volumes:
+      # Production model caches (host paths for persistence)
+      - /data/ml_models/huggingface:/app/.cache/huggingface
+      - /data/ml_models/whisper:/root/.cache/whisper
+      - /data/ml_models/fasttext:/root/.cache/zaban/models
+    networks:
+      - zaban-network
+
+  # Frontend - Production Configuration
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: zaban-frontend
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "3000:3000"
+    restart: always
+    deploy: {}
+    networks:
+      - zaban-network
+
+volumes:
+  ml_models_cache:
+
+networks:
+  zaban-network:
+    driver: bridge
