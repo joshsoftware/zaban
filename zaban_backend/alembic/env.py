@@ -33,19 +33,23 @@ target_metadata = Base.metadata
 # ... etc.
 
 
-def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
+def make_sync_url(url: str) -> str:
+    """Convert async driver URL to sync for Alembic migrations.
 
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
+    asyncpg cannot be used with synchronous SQLAlchemy engines.
+    Alembic always runs migrations synchronously.
     """
-    url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+    return (
+        url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
+           .replace("postgres+asyncpg://", "postgresql+psycopg://")
+           .replace("postgres://", "postgresql+psycopg://")
+    )
+
+
+def run_migrations_offline() -> None:
+    """Run migrations in 'offline' mode."""
+    raw_url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+    url = make_sync_url(raw_url)
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -58,16 +62,12 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
+    """Run migrations in 'online' mode."""
     ini_section = config.get_section(config.config_ini_section, {})
-    db_url = os.getenv("DATABASE_URL") or ini_section.get("sqlalchemy.url")
-    if db_url:
-        ini_section["sqlalchemy.url"] = db_url
+    raw_url = os.getenv("DATABASE_URL") or ini_section.get("sqlalchemy.url")
+    if raw_url:
+        ini_section["sqlalchemy.url"] = make_sync_url(raw_url)
+
     connectable = engine_from_config(
         ini_section,
         prefix="sqlalchemy.",
