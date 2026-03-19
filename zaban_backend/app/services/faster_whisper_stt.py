@@ -26,6 +26,9 @@ from .constants import (
     DEFAULT_AUDIO_SUFFIX,
 )
 
+# Import model manager for lazy loading
+from app.core.model_manager import model_manager
+
 
 @dataclass
 class SttResult:
@@ -57,9 +60,24 @@ class FasterWhisperSttService:
             print("⚠️  openai-whisper not installed. Install with: pip install openai-whisper")
             return
 
-        if os.getenv("PRELOAD_WHISPER", "true").lower() == "true":
-            model_size = os.getenv("WHISPER_MODEL", "medium")
-            self.load_model(model_size)
+        # Register with model manager for lazy management
+        # We don't load the model here anymore (Pure Lazy Loading).
+        model_manager.register_service("whisper", self.unload_model)
+
+    def unload_model(self):
+        """Unload Whisper model to free up GPU memory."""
+        if self.model_loaded:
+            print(f"🧹 Unloading openai-whisper model '{self.model_name}' from {self.device}...")
+            # Move to CPU first to ensure clean handoff before deletion
+            if self.device == "cuda":
+                self.model.to("cpu")
+            
+            del self.model
+            self.model = None
+            self.model_name = None
+            self.model_loaded = False
+            # Mark as unloaded in manager (if called manually)
+            model_manager.mark_unloaded("whisper")
 
     def load_model(self, model_size: str = "medium"):
         """Load openai-whisper model."""
@@ -96,6 +114,9 @@ class FasterWhisperSttService:
             self.load_model(model_size or os.getenv("WHISPER_MODEL", "medium"))
         elif model_size and model_size != self.model_name:
             self.load_model(model_size)
+
+        # Mark as used to reset the idle timer
+        model_manager.touch("whisper")
 
         lang_arg = None
         if language:

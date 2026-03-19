@@ -31,6 +31,9 @@ from app.services.voiceprint.plda import (
 from app.services.voiceprint.utils.audio import load_audio
 from app.services.voiceprint.utils.embeddings import ECAPAEmbedder
 
+# Import model manager for lazy loading
+from app.core.model_manager import model_manager
+
 
 class VoiceVerifierECAPA:
     """Speaker verification: ECAPA-TDNN + PLDA (Indic) + AS-Norm (Indic cohort)."""
@@ -52,16 +55,20 @@ class VoiceVerifierECAPA:
         self.threshold = threshold or settings.VERIFICATION_THRESHOLD
         self.cohort_top_k = cohort_top_k or settings.COHORT_TOP_K
         
-        # Load PLDA model
-        plda_path = plda_path or settings.PLDA_MODEL_PATH
-        with open(plda_path, "rb") as f:
-            self._plda = pickle.load(f)
+        # Store paths for lazy loading
+        self._plda_path = plda_path or settings.PLDA_MODEL_PATH
+        self._ecapa_savedir = ecapa_savedir
+        self._device_arg = device
         
-        # Initialize ECAPA embedder
-        self._embedder = ECAPAEmbedder(savedir=ecapa_savedir, device=device)
-        self.embedding_dim = self._embedder.embedding_dim
+        self._plda = None
+        self._embedder = None
+        self.embedding_dim = 192 # Default for ECAPA-TDNN if not loaded
+        self.models_loaded = False
         
-        # Initialize Qdrant client
+        # Register with model manager for lazy management
+        model_manager.register_service("voiceprint", self.unload_models)
+
+        # Initialize Qdrant client (Keeping this in init as it's lightweight)
         qdrant_host = qdrant_host or settings.QDRANT_HOST
         qdrant_port = qdrant_port or settings.QDRANT_PORT
         print(f"Connecting to Qdrant at {qdrant_host}:{qdrant_port}...")
@@ -81,6 +88,36 @@ class VoiceVerifierECAPA:
             print(f"⚠️  Failed to initialize Qdrant collections: {e}")
             pass
 
+    def _load_models(self):
+        """[NEW] Lazy load PLDA and ECAPA models."""
+        if self.models_loaded:
+            return
+            
+        print(f"Loading Voiceprint models (PLDA + ECAPA)...")
+        with open(self._plda_path, "rb") as f:
+            self._plda = pickle.load(f)
+            
+        self._embedder = ECAPAEmbedder(savedir=self._ecapa_savedir, device=self._device_arg)
+        self.embedding_dim = self._embedder.embedding_dim
+        self.models_loaded = True
+        print(f"✅ Voiceprint models loaded.")
+
+    def unload_models(self):
+        """[NEW] Unload Voiceprint models to free memory."""
+        if self.models_loaded:
+            print(f"🧹 Unloading Voiceprint models...")
+            # Embedder usually has a .device or we can access the underlying model
+            if hasattr(self._embedder, 'model') and hasattr(self._embedder.model, 'to'):
+                self._embedder.model.to("cpu")
+            
+            del self._plda
+            del self._embedder
+            self._plda = None
+            self._embedder = None
+            self.models_loaded = False
+            # Mark as unloaded in manager
+            model_manager.mark_unloaded("voiceprint")
+
     def _init_collections(self) -> None:
         """Initialize Qdrant collections for enrolled users and cohort."""
         for name in [settings.ENROLLED_COLLECTION, settings.COHORT_COLLECTION]:
@@ -94,6 +131,10 @@ class VoiceVerifierECAPA:
         """
         Extract embedding from audio (runs in thread pool).
         """
+        self._load_models()
+        # Mark as used to reset the idle timer
+        model_manager.touch("voiceprint")
+
         start = time.time()
         loop = asyncio.get_running_loop()
         

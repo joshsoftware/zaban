@@ -3,6 +3,9 @@ import torch
 from typing import List, Optional
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
+# Import model manager for lazy loading
+from app.core.model_manager import model_manager
+
 
 class IndicTrans2Service:
     """
@@ -34,9 +37,33 @@ class IndicTrans2Service:
         self.processor = None
         self.model_loaded = False
         
-        # Check if auto-load is enabled
+        # Register with model manager for lazy management
+        model_manager.register_service("indictrans2", self.unload_models)
+
+        # Check if auto-load is enabled (Defaults to false for Pure Lazy Loading)
         if os.getenv("INDICTRANS2_AUTO_LOAD", "false").lower() == "true":
             self.load_models()
+
+    def unload_models(self):
+        """Unload IndicTrans2 models to free up GPU memory."""
+        if self.model_loaded:
+            print(f"🧹 Unloading IndicTrans2 models from {self.device}...")
+            
+            # Move to CPU before deletion if on CUDA
+            if self.device == "cuda":
+                if self.en_indic_model: self.en_indic_model.to("cpu")
+                if self.indic_en_model: self.indic_en_model.to("cpu")
+            
+            del self.en_indic_model
+            del self.indic_en_model
+            self.en_indic_model = None
+            self.indic_en_model = None
+            self.en_indic_tokenizer = None
+            self.indic_en_tokenizer = None
+            self.processor = None
+            self.model_loaded = False
+            # Mark as unloaded in manager
+            model_manager.mark_unloaded("indictrans2")
     
     def load_models(self):
         """Load IndicTrans2 models (lazy loading)"""
@@ -112,6 +139,9 @@ class IndicTrans2Service:
         if not self.model_loaded:
             self.load_models()
         
+        # Mark as used to reset the idle timer
+        model_manager.touch("indictrans2")
+        
         # Determine which model to use
         is_en_to_indic = source_lang == "eng_Latn"
         
@@ -179,6 +209,9 @@ class IndicTrans2Service:
         """
         if not self.model_loaded:
             self.load_models()
+        
+        # Mark as used to reset the idle timer
+        model_manager.touch("indictrans2")
         
         is_en_to_indic = source_lang == "eng_Latn"
         model = self.en_indic_model if is_en_to_indic else self.indic_en_model

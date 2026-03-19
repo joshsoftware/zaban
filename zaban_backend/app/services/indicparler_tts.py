@@ -10,6 +10,9 @@ import numpy as np
 from typing import Optional, List
 from dataclasses import dataclass
 
+# Import model manager for lazy loading
+from app.core.model_manager import model_manager
+
 
 @dataclass
 class TTSResult:
@@ -30,6 +33,29 @@ class IndicParlerTTSService:
         self.description_tokenizer = None
         self.device = None
         self.sample_rate = None # Will be loaded from model config
+        
+        # Register with model manager for lazy management
+        model_manager.register_service("indicparler_tts", self.unload_model)
+
+    def unload_model(self):
+        """Unload IndicParler TTS model to free up GPU memory."""
+        if self.model is not None:
+            print(f"🧹 Unloading IndicParler TTS model from {self.device}...")
+            
+            # Move to CPU before deletion if on CUDA
+            if self.device == "cuda":
+                self.model.to("cpu")
+            
+            del self.model
+            del self.tokenizer
+            del self.description_tokenizer
+            self.model = None
+            self.tokenizer = None
+            self.description_tokenizer = None
+            self.device = None
+            self.sample_rate = None
+            # Mark as unloaded in manager
+            model_manager.mark_unloaded("indicparler_tts")
         
     def _load_model(self):
         """Lazy load the IndicParler model"""
@@ -144,6 +170,9 @@ class IndicParlerTTSService:
             TTSResult with audio data and metadata
         """
         self._load_model()
+        
+        # Mark as used to reset the idle timer
+        model_manager.touch("indicparler_tts")
         
         import torch
         import soundfile as sf

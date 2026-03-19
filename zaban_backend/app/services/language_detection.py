@@ -16,6 +16,9 @@ except ImportError:
     FASTTEXT_AVAILABLE = False
     print("⚠️  FastText not available; auto-detection disabled")
 
+# Import model manager for lazy loading
+from app.core.model_manager import model_manager
+
 
 @dataclass
 class LanguageDetectionResult:
@@ -86,8 +89,22 @@ class LanguageDetector:
     def __init__(self):
         self.fasttext_model = None
         self.model_cache_dir = self._get_model_cache_dir()
-        if FASTTEXT_AVAILABLE:
-            self._load_fasttext_model()
+        
+        # Register with model manager for lazy management
+        model_manager.register_service("language_detection", self.unload_model)
+        
+        # We don't load the model here anymore (Pure Lazy Loading).
+        # if FASTTEXT_AVAILABLE:
+        #     self._load_fasttext_model()
+
+    def unload_model(self):
+        """[NEW] Unload FastText model to free up memory."""
+        if self.fasttext_model:
+            print(f"🧹 Unloading FastText language detection model...")
+            del self.fasttext_model
+            self.fasttext_model = None
+            # Mark as unloaded in manager
+            model_manager.mark_unloaded("language_detection")
     
     def _get_model_cache_dir(self) -> Path:
         """
@@ -277,6 +294,13 @@ class LanguageDetector:
         Returns a default result (eng_Latn with 0.0 confidence) for empty text.
         Raises an error if FastText is unavailable.
         """
+        # Ensure model is loaded (Lazy Loading)
+        if self.fasttext_model is None and FASTTEXT_AVAILABLE:
+            self._load_fasttext_model()
+            
+        # Mark as used to reset the idle timer
+        model_manager.touch("language_detection")
+
         # Handle empty or whitespace-only text with default fallback
         if not text or not text.strip():
             return LanguageDetectionResult(

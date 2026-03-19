@@ -3,7 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 import os
+import asyncio
 from pathlib import Path
+
+# Import model manager for background cleanup
+from .core.model_manager import model_manager
 
 # Load environment variables as early as possible so modules that read env at
 # import time (e.g., OAuth clients) receive the correct values.
@@ -30,21 +34,27 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    """Load environment variables and preload models at startup."""
+    """
+    Actions to perform on application startup.
+    Now uses 'Pure Lazy Loading' - no models are loaded on startup.
+    Starts a background task for automatic model unloading if enabled.
+    """
     load_dotenv(override=True)
+    print("🚀 Starting Zaban Backend...")
     
-    # Preload openai-whisper STT at startup
-    try:
-        if os.getenv("PRELOAD_WHISPER", "true").lower() == "true":
-            from .services.faster_whisper_stt import get_faster_whisper_stt_service
-            model_name = os.getenv("WHISPER_MODEL", "medium")
-            service = get_faster_whisper_stt_service()
-            service.load_model(model_name)
-    except Exception as e:
-        print(f"⚠️  openai-whisper preload failed: {e}")
-        print("   Model will be loaded on first request (slower)")
+    # Get model management configurations
+    enable_auto_unload = os.getenv("ENABLE_AUTO_UNLOAD", "true").lower() == "true"
+    idle_ttl = int(os.getenv("MODEL_IDLE_TTL", "300"))
 
-    # Initialize voiceprint verifier
+    if enable_auto_unload:
+        # Start the background cleanup task
+        # This will periodically check for idle models and unload them from GPU memory.
+        asyncio.create_task(model_manager.cleanup_loop(ttl_seconds=idle_ttl))
+        print(f"⏱️ Model auto-unload enabled (TTL: {idle_ttl}s)")
+    else:
+        print("⚠️ Model auto-unload is disabled. Models will stay in memory once loaded.")
+
+    # Initialize voiceprint verifier (Now lightweight, models load lazily)
     from .services.voiceprint.config import voiceprint_settings
     if voiceprint_settings.VOICEPRINT_ENABLED:
         try:

@@ -26,7 +26,7 @@ def download_indictrans2_models():
     print("="*70)
 
     try:
-        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+        from huggingface_hub import snapshot_download
 
         hf_token = os.getenv("HUGGING_FACE_TOKEN")
 
@@ -43,16 +43,11 @@ def download_indictrans2_models():
             if check_model_exists(model_name):
                 continue
 
-            print(f"   Downloading from Hugging Face...")
-            AutoTokenizer.from_pretrained(
-                model_name,
-                trust_remote_code=True,
-                token=hf_token
-            )
-            AutoModelForSeq2SeqLM.from_pretrained(
-                model_name,
-                trust_remote_code=True,
-                token=hf_token
+            print(f"   Downloading from Hugging Face (Download-only)...")
+            snapshot_download(
+                repo_id=model_name,
+                token=hf_token,
+                repo_type="model"
             )
             print(f"✅ Successfully downloaded: {model_name}")
 
@@ -71,9 +66,7 @@ def download_indicparler_tts_model():
     print("="*70)
 
     try:
-        from parler_tts import ParlerTTSForConditionalGeneration
-        from transformers import AutoTokenizer
-        import torch
+        from huggingface_hub import snapshot_download
 
         hf_token = os.getenv("HUGGING_FACE_TOKEN")
         if not hf_token:
@@ -91,25 +84,14 @@ def download_indicparler_tts_model():
             print("✅ IndicParler TTS model already cached!")
             return True
 
-        print("   Downloading from Hugging Face...")
+        print("   Downloading from Hugging Face (Download-only)...")
         print("   (This is a large model, may take several minutes...)")
 
-        # Determine device and dtype
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        torch_dtype = torch.float16 if device == "cuda" else torch.float32
-
-        # Download model
-        model = ParlerTTSForConditionalGeneration.from_pretrained(
-            model_name,
-            torch_dtype=torch_dtype,
-            token=hf_token
-        )
-
-        # Download tokenizers
-        AutoTokenizer.from_pretrained(model_name, token=hf_token)
-        AutoTokenizer.from_pretrained(
-            model.config.text_encoder._name_or_path,
-            token=hf_token
+        # Download main model
+        snapshot_download(
+            repo_id=model_name,
+            token=hf_token,
+            repo_type="model"
         )
 
         print(f"✅ Successfully downloaded: {model_name}")
@@ -131,6 +113,7 @@ def download_whisper_model():
 
     try:
         import whisper
+        from whisper import _MODELS, _download
 
         model_size = os.getenv("WHISPER_MODEL", "medium")
 
@@ -145,8 +128,9 @@ def download_whisper_model():
             print(f"✅ Whisper {model_size} model ready!")
             return True
 
-        print(f"   Downloading from OpenAI...")
-        whisper.load_model(model_size)
+        print(f"   Downloading from OpenAI (Download-only)...")
+        # Use internal _download to avoid loading the model into memory
+        _download(_MODELS[model_size], str(whisper_cache), False)
         print(f"✅ Successfully downloaded Whisper {model_size} model!")
         return True
 
