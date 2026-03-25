@@ -34,6 +34,11 @@ def get_verifier(request: Request):
     return verifier
 
 
+def get_diarization_service(request: Request):
+    """Dependency to get the diarization service from app state."""
+    return getattr(request.app.state, "diarization_service", None)
+
+
 def _service_unavailable_response() -> JSONResponse:
     """Return a graceful response when voiceprint service is unavailable."""
     if not settings.VOICEPRINT_ENABLED:
@@ -121,7 +126,8 @@ async def verify_voiceprint(
     device_id: Optional[str] = Form(None),
     file: UploadFile = File(None),
     db: Session = Depends(get_db),
-    verifier=Depends(get_verifier)
+    verifier=Depends(get_verifier),
+    diarization_service=Depends(get_diarization_service)
 ):
     """Verify a user's voice against their enrolled voiceprint."""
     if verifier is None:
@@ -146,6 +152,23 @@ async def verify_voiceprint(
     try:
         async with await open_file(temp_path, "wb") as f:
             await f.write(audio_content)
+
+        # Diarization check (ensure single speaker)
+        if diarization_service:
+            # Run diarization in executor as it's CPU/GPU heavy
+            import asyncio
+            loop = asyncio.get_running_loop()
+            diarization_result = await loop.run_in_executor(
+                None, diarization_service.diarize, temp_path
+            )
+            
+            unique_speakers = len(set(segment["speaker"] for segment in diarization_result))
+            if unique_speakers > 1:
+                return VerificationResponse(
+                    verified=False,
+                    threshold=settings.VERIFICATION_THRESHOLD,
+                    error=f"Multiple speakers detected ({unique_speakers}). Please provide audio with only one speaker."
+                )
 
         # Verify
         result = await verifier.verify_speaker(temp_path, str(customer_id))
