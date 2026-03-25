@@ -64,6 +64,17 @@ async def startup_event():
     else:
         print("ℹ️  Voiceprint service disabled (VOICEPRINT_ENABLED=false)")
 
+    # Initialize Diarization Service
+    try:
+        from .services.diarization.service import DiarizationService
+        app.state.diarization_service = DiarizationService()
+        print("✅ Diarization service initialized.")
+    except Exception as e:
+        import traceback
+        print(f"⚠️  Diarization service initialization failed: {e}")
+        traceback.print_exc()
+        app.state.diarization_service = None
+
 
 @app.get("/up")
 async def up():
