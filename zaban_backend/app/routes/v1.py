@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from ..services.ai4bharat import Ai4BharatClient
 from ..services.language_detection import get_language_detector
-from ..services.constants import WHISPER_TO_BCP47
+from ..services.constants import WHISPER_TO_BCP47, WHISPER_BEAM_SIZE, WHISPER_BEST_OF
 
 
 router = APIRouter()
@@ -360,15 +360,22 @@ async def stt(
                         temp_file_path = temp_file.name
                     
                     try:
-                        # Transcribe
-                        result = whisper_model.transcribe(
-                            temp_file_path,
-                            language=lang[:2] if lang and len(lang) >= 2 else None,
-                            task="transcribe"
-                        )
+                        # Transcribe with improved auto language detection: condition_on_previous_text=False,
+                        # temperature=0, and beam_size for stable, deterministic language decode.
+                        lang_arg = lang[:2] if lang and len(lang) >= 2 else None
+                        transcribe_kw = {
+                            "language": lang_arg,
+                            "task": "transcribe",
+                        }
+                        if lang_arg is None:
+                            transcribe_kw["condition_on_previous_text"] = False
+                            transcribe_kw["temperature"] = 0
+                            transcribe_kw["beam_size"] = WHISPER_BEAM_SIZE
+                            transcribe_kw["best_of"] = WHISPER_BEST_OF
+                        result = whisper_model.transcribe(temp_file_path, **transcribe_kw)
                         
-                        # Get detected language
-                        detected_lang = result.get("language", lang or "unknown")
+                        # Get detected language from decoding result (same as reference: getattr(info, "language", None) or "en")
+                        detected_lang = result.get("language") or lang or "en"
                         detected_prob = None
                         
                         # Map to BCP-47
